@@ -2,5 +2,5 @@ customtkinter
 pdfplumber
 pdf2image
 Pillow
-opencv-python
+opencv-python-headless
 numpy

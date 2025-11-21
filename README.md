@@ -69,5 +69,28 @@ Run the comparison from the terminal:
 python compare_pdf.py path/to/original.pdf path/to/modified.pdf -o output_report.pdf
 ```
 
+### Docker
+You can also run the tool using Docker without installing dependencies locally.
+
+1.  **Build the image**:
+    ```bash
+    docker build -t pdf-compare .
+    ```
+
+2.  **Run the comparison**:
+    Use the following command to mount your current directory to `/data` inside the container. This allows the container to read your input files and write the output report back to your host machine.
+
+    **Linux/macOS**:
+    ```bash
+    docker run --rm -v "$(pwd):/data" pdf-compare /data/original.pdf /data/modified.pdf -o /data/report.pdf
+    ```
+
+    **Windows (PowerShell)**:
+    ```powershell
+    docker run --rm -v "${PWD}:/data" pdf-compare /data/original.pdf /data/modified.pdf -o /data/report.pdf
+    ```
+
+    *Note: Replace `original.pdf` and `modified.pdf` with your actual filenames. They must be in the current directory (or the path you mounted).*
+
 ## License
 [MIT](LICENSE)
