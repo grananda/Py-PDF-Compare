@@ -6,50 +6,6 @@ from PIL import Image, ImageChops, ImageDraw
 import cv2
 import numpy as np
 
-class PDFComparator:
-    def __init__(self, file_path_a, file_path_b):
-        self.file_path_a = file_path_a
-        self.file_path_b = file_path_b
-
-    def extract_text(self, file_path):
-        text_content = []
-        with pdfplumber.open(file_path) as pdf:
-            for page in pdf.pages:
-                text = page.extract_text()
-                if text:
-                    text_content.append(text)
-                else:
-                    text_content.append("") # Empty page or image-only
-        return text_content
-
-    def compare_text(self):
-        text_a = self.extract_text(self.file_path_a)
-        text_b = self.extract_text(self.file_path_b)
-        
-        # Join all pages for a full document diff, or we could do page-by-page
-        # Let's do a full document diff for simplicity in the report
-        full_text_a = "\n".join(text_a)
-        full_text_b = "\n".join(text_b)
-        
-        diff = difflib.unified_diff(
-            full_text_a.splitlines(), 
-            full_text_b.splitlines(), 
-            fromfile='PDF A', 
-            tofile='PDF B', 
-            lineterm=''
-        )
-        
-        return list(diff)
-
-    def convert_to_images(self, file_path):
-        # This requires poppler installed and in PATH
-        # User provided path: C:\poppler-25.11.0\Library\bin
-        poppler_path = r"C:\poppler-25.11.0\Library\bin"
-        try:
-            return convert_from_path(file_path, poppler_path=poppler_path)
-        except Exception as e:
-            print(f"Error converting PDF to images: {e}")
-            return []
 
 class PDFComparator:
     def __init__(self, file_path_a, file_path_b):
