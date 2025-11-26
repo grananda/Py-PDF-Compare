@@ -2,7 +2,7 @@ import pdfplumber
 from pdf2image import convert_from_path
 import difflib
 import os
-from PIL import Image, ImageChops, ImageDraw
+from PIL import Image, ImageChops, ImageDraw, ImageFont
 import cv2
 import numpy as np
 
@@ -11,6 +11,13 @@ class PDFComparator:
     def __init__(self, file_path_a, file_path_b):
         self.file_path_a = file_path_a
         self.file_path_b = file_path_b
+        try:
+            # Try to load a standard font, size 60
+            self.font = ImageFont.truetype("arial.ttf", 60)
+        except IOError:
+            # Fallback to default if arial is not found
+            print("Warning: Arial font not found, using default.")
+            self.font = None
 
     def extract_text(self, file_path):
         text_content = []
@@ -54,91 +61,192 @@ class PDFComparator:
             print(f"Error converting PDF to images: {e}")
             return []
 
+    def align_pages(self, text_a, text_b):
+        """
+        Aligns pages based on their text content using difflib.
+        Returns a list of opcodes describing how to turn A into B.
+        """
+        matcher = difflib.SequenceMatcher(None, text_a, text_b)
+        return matcher.get_opcodes()
+
+    def create_blank_page(self, width, height):
+        """Creates a white blank page image."""
+        return Image.new('RGB', (width, height), 'white')
+
+    def draw_labels(self, image, text_label, color=(0, 0, 0), bg_color="white", x=10, y=5):
+        """Draws a label on the image at (x, y) with a background box."""
+        draw = ImageDraw.Draw(image)
+        
+        # Calculate text size
+        if self.font:
+            bbox = draw.textbbox((0, 0), text_label, font=self.font)
+            text_width = bbox[2] - bbox[0]
+            text_height = bbox[3] - bbox[1]
+            padding = 10
+        else:
+            # Approximation for default font
+            text_width = len(text_label) * 6
+            text_height = 12
+            padding = 5
+            
+        # Draw background rectangle
+        draw.rectangle(
+            [x - 5, y, x + text_width + padding, y + text_height + padding], 
+            fill=bg_color, 
+            outline="black"
+        )
+        
+        # Draw text
+        draw.text((x, y + padding/2), text_label, fill=color, font=self.font)
+
     def compare_visuals(self):
-        # Convert pages to images for display
+        # 1. Extract text from all pages first for alignment
+        text_a = self.extract_text(self.file_path_a)
+        text_b = self.extract_text(self.file_path_b)
+        
+        # 2. Align pages
+        opcodes = self.align_pages(text_a, text_b)
+        
+        # 3. Convert pages to images
         images_a = self.convert_to_images(self.file_path_a)
         images_b = self.convert_to_images(self.file_path_b)
         
         diff_results = []
         
-        # Open PDFs with pdfplumber for text coordinates
+        # Open PDFs for coordinate extraction
         with pdfplumber.open(self.file_path_a) as pdf_a, pdfplumber.open(self.file_path_b) as pdf_b:
-            max_pages = min(len(images_a), len(images_b), len(pdf_a.pages), len(pdf_b.pages))
             
-            for i in range(max_pages):
-                img_a = images_a[i]
-                img_b = images_b[i]
+            for tag, i1, i2, j1, j2 in opcodes:
                 
-                page_a = pdf_a.pages[i]
-                page_b = pdf_b.pages[i]
-                
-                # Calculate scale factors (Image Pixels / PDF Points)
-                scale_x_a = img_a.width / float(page_a.width)
-                scale_y_a = img_a.height / float(page_a.height)
-                
-                scale_x_b = img_b.width / float(page_b.width)
-                scale_y_b = img_b.height / float(page_b.height)
-                
-                # Extract words with coordinates
-                words_a = page_a.extract_words()
-                words_b = page_b.extract_words()
-                
-                # Prepare text sequences for comparison
-                text_a = [w['text'] for w in words_a]
-                text_b = [w['text'] for w in words_b]
-                
-                # Use SequenceMatcher to find differences
-                matcher = difflib.SequenceMatcher(None, text_a, text_b)
-                
-                # Create combined image
-                width_a, height_a = img_a.size
-                width_b, height_b = img_b.size
-                combined = Image.new('RGBA', (width_a + width_b, max(height_a, height_b)))
-                combined.paste(img_a, (0, 0))
-                combined.paste(img_b, (width_a, 0))
-                
-                # Overlay for highlights
-                overlay = Image.new('RGBA', combined.size, (0, 0, 0, 0))
-                draw = ImageDraw.Draw(overlay)
-                
-                has_changes = False
-                
-                for tag, i1, i2, j1, j2 in matcher.get_opcodes():
-                    if tag == 'equal':
-                        continue
+                if tag == 'equal' or tag == 'replace':
+                    # Compare range of pages
+                    count = max(i2 - i1, j2 - j1)
                     
-                    has_changes = True
-                    
-                    if tag == 'replace' or tag == 'delete':
-                        # Highlight words in A (Red)
-                        for k in range(i1, i2):
-                            word = words_a[k]
-                            # Scale coordinates
-                            x0 = word['x0'] * scale_x_a
-                            top = word['top'] * scale_y_a
-                            x1 = word['x1'] * scale_x_a
-                            bottom = word['bottom'] * scale_y_a
+                    for k in range(count):
+                        idx_a = i1 + k if i1 + k < i2 else None
+                        idx_b = j1 + k if j1 + k < j2 else None
+                        
+                        # Prepare images
+                        img_a = images_a[idx_a] if idx_a is not None and idx_a < len(images_a) else None
+                        img_b = images_b[idx_b] if idx_b is not None and idx_b < len(images_b) else None
+                        
+                        if img_a and img_b:
+                            # Normal comparison
+                            page_a = pdf_a.pages[idx_a]
+                            page_b = pdf_b.pages[idx_b]
                             
-                            # Soft Red for Subtraction
-                            draw.rectangle([x0, top, x1, bottom], fill=(255, 180, 180, 128))
+                            # Calculate scale factors
+                            scale_x_a = img_a.width / float(page_a.width)
+                            scale_y_a = img_a.height / float(page_a.height)
+                            scale_x_b = img_b.width / float(page_b.width)
+                            scale_y_b = img_b.height / float(page_b.height)
                             
-                    if tag == 'replace' or tag == 'insert':
-                        # Highlight words in B (Green)
-                        for k in range(j1, j2):
-                            word = words_b[k]
-                            # Scale coordinates and shift by width_a
-                            x0 = word['x0'] * scale_x_b + width_a
-                            top = word['top'] * scale_y_b
-                            x1 = word['x1'] * scale_x_b + width_a
-                            bottom = word['bottom'] * scale_y_b
+                            words_a = page_a.extract_words()
+                            words_b = page_b.extract_words()
                             
-                            # Soft Green for Addition
-                            draw.rectangle([x0, top, x1, bottom], fill=(180, 255, 180, 128))
-                
-                if has_changes:
-                    combined = Image.alpha_composite(combined, overlay)
-                    diff_results.append(combined.convert("RGB"))
-                else:
-                    pass # No text changes
-                    
+                            page_text_a = [w['text'] for w in words_a]
+                            page_text_b = [w['text'] for w in words_b]
+                            
+                            matcher = difflib.SequenceMatcher(None, page_text_a, page_text_b)
+                            
+                            width_a, height_a = img_a.size
+                            width_b, height_b = img_b.size
+                            combined = Image.new('RGBA', (width_a + width_b, max(height_a, height_b)))
+                            combined.paste(img_a, (0, 0))
+                            combined.paste(img_b, (width_a, 0))
+                            
+                            overlay = Image.new('RGBA', combined.size, (0, 0, 0, 0))
+                            draw = ImageDraw.Draw(overlay)
+                            
+                            has_changes = False
+                            
+                            for inner_tag, ii1, ii2, jj1, jj2 in matcher.get_opcodes():
+                                if inner_tag == 'equal': continue
+                                has_changes = True
+                                if inner_tag in ('replace', 'delete'):
+                                    for w_idx in range(ii1, ii2):
+                                        w = words_a[w_idx]
+                                        draw.rectangle([w['x0']*scale_x_a, w['top']*scale_y_a, w['x1']*scale_x_a, w['bottom']*scale_y_a], fill=(255, 180, 180, 128))
+                                if inner_tag in ('replace', 'insert'):
+                                    for w_idx in range(jj1, jj2):
+                                        w = words_b[w_idx]
+                                        draw.rectangle([w['x0']*scale_x_b + width_a, w['top']*scale_y_b, w['x1']*scale_x_b + width_a, w['bottom']*scale_y_b], fill=(180, 255, 180, 128))
+                            
+                            final_img = None
+                            if has_changes or idx_a != idx_b:
+                                combined = Image.alpha_composite(combined, overlay)
+                                final_img = combined.convert("RGB")
+                                
+                                label_text = f"Left: Page {idx_a+1} | Right: Page {idx_b+1}"
+                                bg_color = "white"
+                                if idx_a != idx_b:
+                                    label_text += f" (Shifted)"
+                                    bg_color = "yellow"
+                                
+                                self.draw_labels(final_img, label_text, bg_color=bg_color)
+                                diff_results.append(final_img)
+                            else:
+                                # No changes
+                                final_img = combined.convert("RGB")
+                                label_text = f"Left: Page {idx_a+1} | Right: Page {idx_b+1} (No Differences)"
+                                self.draw_labels(final_img, label_text, bg_color="white")
+                                diff_results.append(final_img)
+
+                        elif img_a is None and img_b:
+                            # Extra page in B (Insertion)
+                            img_a_blank = self.create_blank_page(img_b.width, img_b.height)
+                            combined = Image.new('RGB', (img_a_blank.width + img_b.width, img_b.height))
+                            combined.paste(img_a_blank, (0, 0))
+                            combined.paste(img_b, (img_a_blank.width, 0))
+                            
+                            # Right: Page X (Added) (Green)
+                            self.draw_labels(combined, f"Page {idx_b+1} (Added)", bg_color="#ccffcc", x=img_a_blank.width + 10)
+                            # Left: Blank (No label needed or "Missing" if desired, but user said "keep empty page in left")
+                            
+                            diff_results.append(combined)
+                            
+                        elif img_b is None and img_a:
+                            # Extra page in A (Deletion)
+                            img_b_blank = self.create_blank_page(img_a.width, img_a.height)
+                            combined = Image.new('RGB', (img_a.width + img_b_blank.width, img_a.height))
+                            combined.paste(img_a, (0, 0))
+                            combined.paste(img_b_blank, (img_a.width, 0))
+                            
+                            # Left: Page X (Missing) (Red)
+                            self.draw_labels(combined, f"Page {idx_a+1} (Missing)", bg_color="#ffcccc", x=10)
+                            # Right: Blank (No label)
+                            
+                            diff_results.append(combined)
+                        
+                elif tag == 'delete':
+                    # Pages in A but not in B
+                    for k in range(i1, i2):
+                        img_a = images_a[k]
+                        img_b = self.create_blank_page(img_a.width, img_a.height)
+                        
+                        combined = Image.new('RGB', (img_a.width + img_b.width, img_a.height))
+                        combined.paste(img_a, (0, 0))
+                        combined.paste(img_b, (img_a.width, 0))
+                        
+                        # Left: Page X (Missing) (Red)
+                        self.draw_labels(combined, f"Page {k+1} (Missing)", bg_color="#ffcccc", x=10)
+                        # Right: Blank (No label)
+                        
+                        diff_results.append(combined)
+                        
+                elif tag == 'insert':
+                    # Pages in B but not in A
+                    for k in range(j1, j2):
+                        img_b = images_b[k]
+                        img_a = self.create_blank_page(img_b.width, img_b.height)
+                        
+                        combined = Image.new('RGB', (img_a.width + img_b.width, img_b.height))
+                        combined.paste(img_a, (0, 0))
+                        combined.paste(img_b, (img_a.width, 0))
+                        
+                        # Right: Page X (Added) (Green)
+                        self.draw_labels(combined, f"Page {k+1} (Added)", bg_color="#ccffcc", x=img_a.width + 10)
+                        
+                        diff_results.append(combined)
+                        
         return diff_results
