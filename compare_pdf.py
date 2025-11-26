@@ -28,7 +28,7 @@ def main():
         if not diff_images:
             print("No visual differences found.")
         else:
-            print(f"Found differences on {len(diff_images)} page(s).")
+            print(f"Report generated with {len(diff_images)} page(s).")
             print(f"Saving report to '{args.output}'...")
             
             diff_images[0].save(args.output, save_all=True, append_images=diff_images[1:])
