@@ -15,9 +15,24 @@ A powerful Python-based tool for comparing PDF files. It provides both text-base
 ## Prerequisites
 
 ### 1. Python
-Ensure you have Python 3.8 or higher installed.
+Ensure you have Python 3.12 or higher installed.
 
-### 2. Poppler
+### 2. Package Manager
+You can use either **uv** (recommended, faster) or **pip**:
+
+**Option A: uv (Recommended)**
+```bash
+# macOS/Linux
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Windows
+powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+
+**Option B: pip**
+Comes pre-installed with Python.
+
+### 3. Poppler
 This tool requires **Poppler** for converting PDFs to images.
 
 #### Windows
@@ -47,6 +62,13 @@ sudo apt-get install poppler-utils
     ```
 
 2.  Install Python dependencies:
+
+    **Option A: Using uv (Recommended - Fast)**
+    ```bash
+    uv sync
+    ```
+
+    **Option B: Using pip (Traditional)**
     ```bash
     pip install -r requirements.txt
     ```
@@ -55,6 +77,13 @@ sudo apt-get install poppler-utils
 
 ### Graphical User Interface (GUI)
 Run the main script to launch the GUI:
+
+**With uv:**
+```bash
+uv run python main.py
+```
+
+**With pip (activate venv first):**
 ```bash
 python main.py
 ```
@@ -65,12 +94,21 @@ python main.py
 
 ### Command Line Interface (CLI)
 Run the comparison from the terminal:
+
+**With uv:**
+```bash
+uv run python compare_pdf.py path/to/original.pdf path/to/modified.pdf -o output_report.pdf
+```
+
+**With pip (activate venv first):**
 ```bash
 python compare_pdf.py path/to/original.pdf path/to/modified.pdf -o output_report.pdf
 ```
 
 ### Docker
-You can also run the tool using Docker without installing dependencies locally.
+You can also run the tool using Docker without installing dependencies locally (uses Python 3.12).
+
+**Note:** The `.dockerignore` file excludes virtual environments and other unnecessary files from the build context, making builds faster and preventing issues with symbolic links on Windows.
 
 1.  **Build the image**:
     ```bash
