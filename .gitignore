@@ -6,8 +6,6 @@ __pycache__/
 venv/
 env/
 
-# PDF Files (User Request)
-*.pdf
 
 # IDEs
 .vscode/
