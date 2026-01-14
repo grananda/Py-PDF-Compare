@@ -1,0 +1,14 @@
+[project]
+name = "pdf-compare"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "customtkinter>=5.2.2",
+    "numpy>=2.4.1",
+    "opencv-python-headless>=4.11.0.86",
+    "pdf2image>=1.17.0",
+    "pdfplumber>=0.11.9",
+    "pillow>=12.1.0",
+]

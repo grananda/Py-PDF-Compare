@@ -11,13 +11,26 @@ class PDFComparator:
     def __init__(self, file_path_a, file_path_b):
         self.file_path_a = file_path_a
         self.file_path_b = file_path_b
-        try:
-            # Try to load a standard font, size 60
-            self.font = ImageFont.truetype("arial.ttf", 60)
-        except IOError:
-            # Fallback to default if arial is not found
-            print("Warning: Arial font not found, using default.")
-            self.font = None
+        # Try different font paths for cross-platform compatibility
+        font_options = [
+            "arial.ttf",  # Windows
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",  # Linux/WSL
+            "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",  # Linux alternative
+            "/System/Library/Fonts/Helvetica.ttc",  # macOS
+        ]
+
+        self.font = None
+        for font_path in font_options:
+            try:
+                self.font = ImageFont.truetype(font_path, 60)
+                break
+            except (IOError, OSError):
+                continue
+
+        if self.font is None:
+            print("Warning: No TrueType font found, using default bitmap font.")
+            # Fallback to default font
+            self.font = ImageFont.load_default()
 
     def extract_text(self, file_path):
         text_content = []
@@ -76,26 +89,26 @@ class PDFComparator:
     def draw_labels(self, image, text_label, color=(0, 0, 0), bg_color="white", x=10, y=5):
         """Draws a label on the image at (x, y) with a background box."""
         draw = ImageDraw.Draw(image)
-        
-        # Calculate text size
-        if self.font:
+
+        # Calculate text size based on font type
+        try:
             bbox = draw.textbbox((0, 0), text_label, font=self.font)
             text_width = bbox[2] - bbox[0]
             text_height = bbox[3] - bbox[1]
             padding = 10
-        else:
-            # Approximation for default font
+        except (AttributeError, TypeError):
+            # Fallback for bitmap or problematic fonts
             text_width = len(text_label) * 6
             text_height = 12
             padding = 5
-            
+
         # Draw background rectangle
         draw.rectangle(
-            [x - 5, y, x + text_width + padding, y + text_height + padding], 
-            fill=bg_color, 
+            [x - 5, y, x + text_width + padding, y + text_height + padding],
+            fill=bg_color,
             outline="black"
         )
-        
+
         # Draw text
         draw.text((x, y + padding/2), text_label, fill=color, font=self.font)
 

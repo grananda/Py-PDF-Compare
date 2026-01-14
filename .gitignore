@@ -6,8 +6,6 @@ __pycache__/
 venv/
 env/
 
-# PDF Files (User Request)
-*.pdf
 
 # IDEs
 .vscode/
@@ -15,3 +13,4 @@ env/
 
 # Test Artifacts
 diff_result_preview.png
+/.claude/

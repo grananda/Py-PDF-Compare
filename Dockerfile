@@ -1,6 +1,6 @@
 # Use an official Python runtime as a parent image
-# python:3.9-slim is based on Debian (Linux)
-FROM python:3.9-slim
+# python:3.12-slim is based on Debian (Linux)
+FROM python:3.12-slim
 
 # Set the working directory in the container
 WORKDIR /app
