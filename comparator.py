@@ -76,11 +76,69 @@ class PDFComparator:
 
     def align_pages(self, text_a, text_b):
         """
-        Aligns pages based on their text content using difflib.
-        Returns a list of opcodes describing how to turn A into B.
+        Aligns pages based on their text content similarity.
+        Returns a list of tuples (tag, i1, i2, j1, j2) describing alignment.
+        Uses similarity scoring to detect inserted/deleted pages.
         """
-        matcher = difflib.SequenceMatcher(None, text_a, text_b)
-        return matcher.get_opcodes()
+        len_a = len(text_a)
+        len_b = len(text_b)
+
+        # Similarity threshold - pages above this are considered matching
+        SIMILARITY_THRESHOLD = 0.6
+        LOOKAHEAD_WINDOW = 3  # How many pages to look ahead
+
+        alignments = []
+        i, j = 0, 0
+
+        while i < len_a or j < len_b:
+            if i >= len_a:
+                # All remaining pages in B are insertions
+                alignments.append(('insert', i, i, j, len_b))
+                break
+            elif j >= len_b:
+                # All remaining pages in A are deletions
+                alignments.append(('delete', i, len_a, j, j))
+                break
+            else:
+                # Calculate similarity between current pages
+                current_similarity = difflib.SequenceMatcher(None, text_a[i], text_b[j]).ratio()
+
+                # Look ahead to find best alignment
+                best_match = {'type': 'equal', 'i': i, 'j': j, 'similarity': current_similarity}
+
+                # Check if skipping page(s) in B gives better match (insertion in B)
+                for skip_j in range(1, min(LOOKAHEAD_WINDOW, len_b - j)):
+                    similarity = difflib.SequenceMatcher(None, text_a[i], text_b[j + skip_j]).ratio()
+                    if similarity > best_match['similarity'] and similarity > SIMILARITY_THRESHOLD:
+                        best_match = {'type': 'insert', 'i': i, 'j': j + skip_j, 'similarity': similarity, 'skip': skip_j}
+
+                # Check if skipping page(s) in A gives better match (deletion in A)
+                for skip_i in range(1, min(LOOKAHEAD_WINDOW, len_a - i)):
+                    similarity = difflib.SequenceMatcher(None, text_a[i + skip_i], text_b[j]).ratio()
+                    if similarity > best_match['similarity'] and similarity > SIMILARITY_THRESHOLD:
+                        best_match = {'type': 'delete', 'i': i + skip_i, 'j': j, 'similarity': similarity, 'skip': skip_i}
+
+                # Apply best match found
+                if best_match['type'] == 'insert':
+                    # Pages in B (j to j+skip) are insertions
+                    alignments.append(('insert', i, i, j, best_match['j']))
+                    j = best_match['j']
+                elif best_match['type'] == 'delete':
+                    # Pages in A (i to i+skip) are deletions
+                    alignments.append(('delete', i, best_match['i'], j, j))
+                    i = best_match['i']
+                elif current_similarity > SIMILARITY_THRESHOLD:
+                    # Current pages match well enough
+                    alignments.append(('equal', i, i + 1, j, j + 1))
+                    i += 1
+                    j += 1
+                else:
+                    # Pages are different - replacement
+                    alignments.append(('replace', i, i + 1, j, j + 1))
+                    i += 1
+                    j += 1
+
+        return alignments
 
     def create_blank_page(self, width, height):
         """Creates a white blank page image."""
