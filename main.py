@@ -4,6 +4,7 @@ from comparator import PDFComparator
 import threading
 import os
 from PIL import Image
+import queue
 
 ctk.set_appearance_mode("System")
 ctk.set_default_color_theme("blue")
@@ -20,6 +21,9 @@ class App(ctk.CTk):
 
         self.file_a_path = ""
         self.file_b_path = ""
+
+        # Queue for thread-safe communication
+        self.result_queue = queue.Queue()
 
         # File A Selection
         self.label_a = ctk.CTkLabel(self, text="PDF A: Not Selected")
@@ -70,44 +74,82 @@ class App(ctk.CTk):
         # Clear previous results
         for widget in self.scrollable_frame.winfo_children():
             widget.destroy()
-            
+
         # Run in thread to not freeze GUI
-        threading.Thread(target=self.run_comparison, daemon=True).start()
+        thread = threading.Thread(target=self.run_comparison, daemon=False)
+        thread.start()
+
+        # Start checking for results
+        self.check_queue()
 
     def run_comparison(self):
         try:
+            print("Starting comparison...")
             comparator = PDFComparator(self.file_a_path, self.file_b_path)
             # First do text comparison for logging/info if needed, but user wants visuals
             # Let's do visual comparison
+            print("Calling compare_visuals()...")
             diff_images = comparator.compare_visuals()
-            
-            self.after(0, self.update_ui_result, diff_images)
-            
+            print(f"Comparison complete. Found {len(diff_images)} result images.")
+
+            # Put result in queue
+            print("Putting result in queue...")
+            self.result_queue.put(('success', diff_images))
+            print("Result queued.")
+
         except Exception as e:
-            self.after(0, self.update_ui_error, str(e))
+            print(f"Error during comparison: {e}")
+            import traceback
+            traceback.print_exc()
+            self.result_queue.put(('error', str(e)))
+
+    def check_queue(self):
+        """Check the queue for results from the worker thread"""
+        try:
+            # Non-blocking check
+            result_type, data = self.result_queue.get_nowait()
+            print(f"Got result from queue: {result_type}")
+
+            if result_type == 'success':
+                self.update_ui_result(data)
+            elif result_type == 'error':
+                self.update_ui_error(data)
+
+        except queue.Empty:
+            # No result yet, check again in 100ms
+            self.after(100, self.check_queue)
 
     def update_ui_result(self, diff_images):
+        print(f"update_ui_result called with {len(diff_images)} images")
         self.diff_results = diff_images
+
         if not diff_images:
+            print("No differences found, showing message")
             lbl = ctk.CTkLabel(self.scrollable_frame, text="No visual differences found.")
             lbl.pack(pady=10)
             self.btn_download.configure(state="disabled")
         else:
-            for img in diff_images:
+            print(f"Processing {len(diff_images)} difference images...")
+            for i, img in enumerate(diff_images):
+                print(f"  Displaying image {i+1}/{len(diff_images)} (size: {img.size})")
                 # Resize for display if too large
                 display_width = 1300
                 ratio = display_width / float(img.width)
                 display_height = int((float(img.height) * float(ratio)))
                 img_resized = img.resize((display_width, display_height), Image.Resampling.LANCZOS)
-                
+
                 ctk_img = ctk.CTkImage(light_image=img_resized, dark_image=img_resized, size=(display_width, display_height))
-                
+
                 lbl = ctk.CTkLabel(self.scrollable_frame, text="", image=ctk_img)
+                lbl.image = ctk_img  # Keep a reference to prevent garbage collection
                 lbl.pack(pady=10)
-            
+
+            print("All images displayed, enabling download button")
             self.btn_download.configure(state="normal")
-                
+
+        print("Re-enabling compare button")
         self.btn_compare.configure(state="normal", text="Compare PDFs")
+        print("UI update complete")
 
     def save_report(self):
         if not self.diff_results:
