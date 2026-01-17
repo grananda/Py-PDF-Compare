@@ -4,13 +4,17 @@ A powerful Python-based tool for comparing PDF files. It provides both text-base
 
 ## Features
 
-- **Visual Comparison**: Side-by-side view of two PDFs.
-- **Content-Aware Highlighting**: Detects text changes based on content, ignoring layout shifts (e.g., inserted paragraphs).
+- **Visual Comparison**: Side-by-side view of two PDFs with intelligent page alignment
+- **Content-Aware Highlighting**: Detects text changes based on content, ignoring layout shifts (e.g., inserted paragraphs)
+- **Smart Page Alignment**: Automatically detects inserted/deleted pages and aligns the rest correctly
 - **Color-Coded Differences**:
-    - **Red**: Deleted text (on the original document).
-    - **Green**: Added text (on the modified document).
-- **GUI & CLI**: Easy-to-use Graphical User Interface and Command Line Interface.
-- **Export**: Save the visual comparison report as a PDF.
+    - **Red**: Deleted text (on the original document)
+    - **Green**: Added text (on the modified document)
+- **Multiple Interfaces**:
+    - **GUI**: Easy-to-use Graphical User Interface
+    - **CLI**: Command Line Interface for automation
+    - **REST API**: HTTP API for integration with JavaScript/Node.js applications
+- **Export**: Save the visual comparison report as a PDF
 
 ## Prerequisites
 
@@ -105,7 +109,174 @@ uv run python compare_pdf.py ./sample_files/original.pdf ./sample_files/modified
 python compare_pdf.py ./sample_files/original.pdf ./sample_files/modified.pdf -o ./sample_files/output_report.pdf
 ```
 
+### REST API (for JavaScript/Node.js integration)
+
+Start the API server:
+
+```bash
+uv run python api.py
+
+# With custom configuration
+PORT=8080 DEBUG=true python api.py
+```
+
+The server will be available at `http://localhost:5000`
+
+#### API Endpoints
+
+**1. Health Check**
+```bash
+GET /health
+```
+
+**2. Compare PDFs (file upload)**
+```bash
+POST /compare
+Content-Type: multipart/form-data
+
+Parameters:
+- file_a: PDF file (original)
+- file_b: PDF file (modified)
+- output_format: 'pdf' or 'json' (optional, default: 'pdf')
+```
+
+**3. Compare PDFs from URLs**
+```bash
+POST /compare-urls
+Content-Type: application/json
+
+Body:
+{
+  "url_a": "https://example.com/original.pdf",
+  "url_b": "https://example.com/modified.pdf",
+  "output_format": "pdf"
+}
+```
+
+#### JavaScript Examples
+
+**Browser (Fetch API):**
+```javascript
+async function comparePDFs(fileA, fileB) {
+    const formData = new FormData();
+    formData.append('file_a', fileA);
+    formData.append('file_b', fileB);
+
+    const response = await fetch('http://localhost:5000/compare', {
+        method: 'POST',
+        body: formData
+    });
+
+    const blob = await response.blob();
+
+    // Download the PDF
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'comparison_report.pdf';
+    a.click();
+}
+```
+
+**Node.js (with axios):**
+```javascript
+const axios = require('axios');
+const FormData = require('form-data');
+const fs = require('fs');
+
+async function comparePDFs(pathA, pathB, outputPath) {
+    const formData = new FormData();
+    formData.append('file_a', fs.createReadStream(pathA));
+    formData.append('file_b', fs.createReadStream(pathB));
+
+    const response = await axios.post('http://localhost:5000/compare', formData, {
+        headers: formData.getHeaders(),
+        responseType: 'arraybuffer'
+    });
+
+    fs.writeFileSync(outputPath, response.data);
+}
+
+// Usage
+comparePDFs('./original.pdf', './modified.pdf', './report.pdf');
+```
+
+**cURL:**
+```bash
+# Compare files
+curl -X POST http://localhost:5000/compare \
+  -F "file_a=@./sample_files/original.pdf" \
+  -F "file_b=@./sample_files/modified.pdf" \
+  -F "output_format=pdf" \
+  --output comparison_report.pdf
+
+# Get JSON response
+curl -X POST http://localhost:5000/compare \
+  -F "file_a=@./original.pdf" \
+  -F "file_b=@./modified.pdf" \
+  -F "output_format=json"
+```
+
+See `client-example.js` for complete HTML form example and more usage patterns.
+
+#### Using Postman
+
+**Method 1: Upload Files**
+
+1. **Create a new request**
+   - Method: `POST`
+   - URL: `http://localhost:5000/compare`
+
+2. **Set up the body**
+   - Go to the **Body** tab
+   - Select **form-data**
+   - Add the following fields:
+     - Key: `file_a` | Type: `File` | Value: Select your original PDF
+     - Key: `file_b` | Type: `File` | Value: Select your modified PDF
+     - Key: `output_format` | Type: `Text` | Value: `pdf` (or `json`)
+
+3. **Send the request**
+   - Click **Send**
+   - For PDF output: Click **Save Response** → **Save to a file** → Save as `.pdf`
+   - For JSON output: View the response in the **Body** tab
+
+**Method 2: Compare from URLs**
+
+1. **Create a new request**
+   - Method: `POST`
+   - URL: `http://localhost:5000/compare-urls`
+
+2. **Set up the headers**
+   - Go to the **Headers** tab
+   - Add: `Content-Type: application/json`
+
+3. **Set up the body**
+   - Go to the **Body** tab
+   - Select **raw** and **JSON**
+   - Enter:
+     ```json
+     {
+       "url_a": "https://example.com/original.pdf",
+       "url_b": "https://example.com/modified.pdf",
+       "output_format": "pdf"
+     }
+     ```
+
+4. **Send the request**
+   - Click **Send**
+   - Save the response as a `.pdf` file
+
+**Testing the Health Endpoint**
+
+1. **Create a new request**
+   - Method: `GET`
+   - URL: `http://localhost:5000/health`
+
+2. **Send the request**
+   - You should receive: `{"status": "ok", "service": "PDF Compare API"}`
+
 ### Docker
+
 You can also run the tool using Docker without installing dependencies locally (uses Python 3.12).
 
 **Note:** The `.dockerignore` file excludes virtual environments and other unnecessary files from the build context, making builds faster and preventing issues with symbolic links on Windows.
@@ -115,7 +286,7 @@ You can also run the tool using Docker without installing dependencies locally (
     docker build -t pdf-compare .
     ```
 
-2.  **Run the comparison**:
+2.  **Run CLI comparison**:
     Use the following command to mount your current directory to `/app` inside the container. This allows the container to read your input files and write the output report back to your host machine.
 
     **Linux/macOS**:
@@ -128,7 +299,104 @@ You can also run the tool using Docker without installing dependencies locally (
     docker run --rm -v "${PWD}:/app" pdf-compare /app/sample_files/original.pdf /app/sample_files/modified.pdf -o /app/sample_files/report.pdf
     ```
 
-    *Note: Replace `original.pdf` and `modified.pdf` with your actual filenames. They must be in the current directory (or the path you mounted).*
+3. **Run API server**:
+    ```bash
+    docker run -p 5000:5000 pdf-compare python api.py
+    ```
+
+## API Configuration
+
+### Environment Variables
+
+- `PORT`: Server port (default: 5000)
+- `DEBUG`: Enable debug mode (default: False)
+
+### Production Deployment
+
+For production, use a WSGI server like Gunicorn:
+
+```bash
+# Install gunicorn
+pip install gunicorn
+
+# Run with 4 workers
+gunicorn -w 4 -b 0.0.0.0:5000 api:app
+```
+
+### Security Considerations for API
+
+⚠️ **Important for production:**
+
+1. Configure file size limits
+2. Validate file types
+3. Implement authentication/authorization
+4. Configure CORS for specific domains:
+   ```python
+   CORS(app, resources={r"/*": {"origins": "https://your-domain.com"}})
+   ```
+5. Use HTTPS
+6. Implement rate limiting
+7. Add request timeout limits
+
+## How It Works
+
+### Smart Page Alignment
+
+The tool uses a content-similarity algorithm to intelligently align pages between documents:
+
+1. **Text Extraction**: Extracts text from each page of both PDFs
+2. **Similarity Scoring**: Calculates similarity between pages using sequence matching
+3. **Lookahead Detection**: Looks ahead up to 3 pages to detect insertions/deletions
+4. **Smart Alignment**:
+   - Detects when pages are inserted in the modified PDF
+   - Detects when pages are deleted from the original PDF
+   - Properly aligns remaining pages after insertions/deletions
+5. **Visual Highlighting**: Highlights text differences within aligned pages
+
+### Example: Inserted Page
+
+If you insert a page in the middle of a document:
+- The inserted page is shown with a blank page on the left and labeled as "Added"
+- All subsequent pages are correctly aligned (e.g., original page 6 → modified page 7)
+- Pages are labeled as "Shifted" to indicate the alignment adjustment
+
+## Project Structure
+
+```
+PDF-Compare/
+├── api.py                  # REST API server
+├── client-example.js       # JavaScript client examples
+├── compare_pdf.py          # CLI entry point
+├── comparator.py           # Core comparison logic
+├── main.py                 # GUI entry point
+├── sample_files/           # Sample PDFs for testing
+├── Dockerfile              # Docker configuration
+└── README.md               # This file
+```
 
 ## License
+
 [MIT](LICENSE)
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+## Troubleshooting
+
+### Poppler not found
+- **Windows**: Ensure Poppler's `bin` folder is in your System PATH
+- **macOS/Linux**: Install poppler-utils via package manager
+
+### API CORS errors
+- The API has CORS enabled by default for development
+- For production, configure CORS to allow only specific domains
+
+### Large PDF files
+- The default file size limit is ~16MB
+- Configure Flask's `MAX_CONTENT_LENGTH` for larger files
+- Consider using background tasks for very large PDFs
+
+## Support
+
+For issues, questions, or contributions, please visit the [GitHub repository](https://github.com/grananda/PDF-Compare).
