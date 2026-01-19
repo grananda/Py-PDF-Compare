@@ -12,8 +12,9 @@ A powerful Python-based tool for comparing PDF files. It provides both text-base
     - **Green**: Added text (on the modified document)
 - **Multiple Interfaces**:
     - **GUI**: Easy-to-use Graphical User Interface
-    - **CLI**: Command Line Interface for automation
-    - **REST API**: HTTP API for integration with JavaScript/Node.js applications
+    - **CLI**: Command Line Interface for automation (Python and Node.js)
+    - **Node.js Wrapper**: Direct Python integration without REST API
+    - **REST API**: HTTP API for integration with web applications
 - **Export**: Save the visual comparison report as a PDF
 
 ## Prerequisites
@@ -107,6 +108,95 @@ uv run python compare_pdf.py ./sample_files/original.pdf ./sample_files/modified
 **With pip (activate venv first):**
 ```bash
 python compare_pdf.py ./sample_files/original.pdf ./sample_files/modified.pdf -o ./sample_files/output_report.pdf
+```
+
+### Node.js CLI Wrapper
+
+A Node.js module that calls the Python script directly, without needing the REST API.
+
+#### Installation
+
+```bash
+# No external dependencies required - uses only Node.js built-in modules
+npm install  # Optional: creates package.json if needed
+```
+
+#### CLI Usage
+
+```bash
+# Basic usage
+node pdf-compare.js original.pdf modified.pdf -o report.pdf
+
+# Using npm script
+npm test  # Runs comparison with sample files
+
+# After npm link (global command)
+npm link
+pdf-compare original.pdf modified.pdf -o report.pdf
+
+# Show help
+node pdf-compare.js --help
+```
+
+#### Programmatic API
+
+```javascript
+const { comparePDFs, findPython } = require('./pdf-compare');
+
+// Basic usage
+async function example() {
+    const result = await comparePDFs(
+        'original.pdf',
+        'modified.pdf',
+        'report.pdf'
+    );
+
+    console.log(result);
+    // {
+    //   success: true,
+    //   output: 'Report generated with 5 page(s)...',
+    //   pageCount: 5,
+    //   reportPath: '/absolute/path/to/report.pdf'
+    // }
+}
+
+// With options
+async function advancedExample() {
+    const result = await comparePDFs('a.pdf', 'b.pdf', 'out.pdf', {
+        pythonPath: '/usr/bin/python3',  // Custom Python path
+        cwd: '/path/to/pdf-compare',     // Working directory
+        timeout: 120000                   // Timeout in ms (default: 60000)
+    });
+}
+
+// Find Python executable
+const pythonPath = await findPython();
+console.log(pythonPath);  // 'python3', 'python', or 'py'
+```
+
+#### Return Values
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | Whether comparison succeeded |
+| `output` | string | Console output from Python script |
+| `pageCount` | number \| null | Number of pages in report (0 if no differences) |
+| `reportPath` | string \| null | Absolute path to generated report (null if no differences) |
+
+#### Error Handling
+
+```javascript
+try {
+    const result = await comparePDFs('a.pdf', 'b.pdf', 'out.pdf');
+} catch (error) {
+    // Possible errors:
+    // - "File not found: /path/to/file.pdf"
+    // - "Python not found. Please install Python 3..."
+    // - "compare_pdf.py not found in /path"
+    // - "Comparison timed out after 60000ms"
+    // - "Comparison failed (exit code 1): ..."
+    console.error(error.message);
+}
 ```
 
 ### REST API (for JavaScript/Node.js integration)
@@ -365,10 +455,12 @@ If you insert a page in the middle of a document:
 ```
 PDF-Compare/
 ├── api.py                  # REST API server
-├── client-example.js       # JavaScript client examples
-├── compare_pdf.py          # CLI entry point
+├── client-example.js       # JavaScript client examples (API usage)
+├── compare_pdf.py          # Python CLI entry point
 ├── comparator.py           # Core comparison logic
 ├── main.py                 # GUI entry point
+├── pdf-compare.js          # Node.js CLI wrapper
+├── package.json            # Node.js package configuration
 ├── sample_files/           # Sample PDFs for testing
 ├── Dockerfile              # Docker configuration
 └── README.md               # This file

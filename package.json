@@ -1,0 +1,29 @@
+{
+  "name": "pdf-compare",
+  "version": "1.0.0",
+  "description": "Compare two PDF files and generate a visual diff report",
+  "main": "pdf-compare.js",
+  "bin": {
+    "pdf-compare": "./pdf-compare.js"
+  },
+  "scripts": {
+    "compare": "node pdf-compare.js",
+    "test": "node pdf-compare.js sample_files/original.pdf sample_files/modified.pdf -o sample_files/test-output.pdf"
+  },
+  "keywords": [
+    "pdf",
+    "compare",
+    "diff",
+    "visual",
+    "comparison"
+  ],
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/grananda/PDF-Compare.git"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  }
+}
