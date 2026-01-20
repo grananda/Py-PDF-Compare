@@ -108,7 +108,7 @@ def main():
     print("\n[2/4] Configuring PyInstaller...")
 
     # Runtime hook for Tcl/Tk library paths
-    rthook_path = script_dir / "pyinstaller_hooks" / "rthook_tcltk.py"
+    rthook_path = script_dir / "pyinstaller_hooks" / "rthook_tcltk_linux.py"
 
     pyinstaller_args = [
         "pyinstaller",
