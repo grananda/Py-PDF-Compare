@@ -83,7 +83,7 @@ COPY --from=builder /app/.venv /app/.venv
 COPY --chown=appuser:appuser . .
 
 # Remove unnecessary files
-RUN rm -rf tests/ *.md sample_files/ .git/ .vscode/ .idea/ __pycache__/ \
+RUN rm -rf tests/ *.md sample-files/ .git/ .vscode/ .idea/ __pycache__/ \
     Containerfile Dockerfile api.Containerfile api.Dockerfile \
     pdf-compare.js package.json node_modules/ 2>/dev/null || true
 

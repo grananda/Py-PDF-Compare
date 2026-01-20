@@ -350,7 +350,7 @@ if (typeof module !== 'undefined' && module.exports) {
 // Example usage in Node.js
 if (require.main === module) {
     // Uncomment to test:
-    // comparePDFsFromNode('./sample_files/original.pdf', './sample_files/modified.pdf', './output.pdf');
+    // comparePDFsFromNode('./sample-files/original.pdf', './sample-files/modified.pdf', './output.pdf');
     console.log('PDF Compare Client Examples');
     console.log('See code for usage examples');
 }

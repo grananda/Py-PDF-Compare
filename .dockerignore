@@ -24,7 +24,7 @@ build/
 !README.md
 tests/
 *.test.py
-sample_files/
+sample-files/
 .DS_Store
 Thumbs.db
 # uv.lock - NOT ignored, needed for reproducible builds

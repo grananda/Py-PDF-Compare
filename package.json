@@ -8,7 +8,7 @@
   },
   "scripts": {
     "compare": "node pdf-compare.js",
-    "test": "node pdf-compare.js sample_files/original.pdf sample_files/modified.pdf -o sample_files/test-output.pdf"
+    "test": "node pdf-compare.js sample-files/original.pdf sample-files/modified.pdf -o sample-files/test-output.pdf"
   },
   "keywords": [
     "pdf",
