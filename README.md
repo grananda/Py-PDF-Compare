@@ -22,10 +22,9 @@ A powerful Python-based tool for comparing PDF files. It provides both text-base
 ### 1. Python
 Ensure you have Python 3.12 or higher installed.
 
-### 2. Package Manager
-You can use either **uv** (recommended, faster) or **pip**:
+### 2. Package Manager (uv)
+This project uses **uv** for fast, reliable Python package management:
 
-**Option A: uv (Recommended)**
 ```bash
 # macOS/Linux
 curl -LsSf https://astral.sh/uv/install.sh | sh
@@ -33,9 +32,6 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 # Windows
 powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
 ```
-
-**Option B: pip**
-Comes pre-installed with Python.
 
 ### 3. Poppler
 This tool requires **Poppler** for converting PDFs to images.
@@ -67,15 +63,8 @@ sudo apt-get install poppler-utils
     ```
 
 2.  Install Python dependencies:
-
-    **Option A: Using uv (Recommended - Fast)**
     ```bash
     uv sync
-    ```
-
-    **Option B: Using pip (Traditional)**
-    ```bash
-    pip install -r requirements.txt
     ```
 
 ## Usage
@@ -83,15 +72,10 @@ sudo apt-get install poppler-utils
 ### Graphical User Interface (GUI)
 Run the main script to launch the GUI:
 
-**With uv:**
 ```bash
 uv run python main.py
 ```
 
-**With pip (activate venv first):**
-```bash
-python main.py
-```
 1.  Select "PDF A" (Original).
 2.  Select "PDF B" (Modified).
 3.  Click **Compare PDFs**.
@@ -100,14 +84,8 @@ python main.py
 ### Command Line Interface (CLI)
 Run the comparison from the terminal:
 
-**With uv:**
 ```bash
 uv run python compare_pdf.py ./sample_files/original.pdf ./sample_files/modified.pdf -o ./sample_files/output_report.pdf
-```
-
-**With pip (activate venv first):**
-```bash
-python compare_pdf.py ./sample_files/original.pdf ./sample_files/modified.pdf -o ./sample_files/output_report.pdf
 ```
 
 ### Node.js CLI Wrapper
@@ -365,34 +343,191 @@ See `client-example.js` for complete HTML form example and more usage patterns.
 2. **Send the request**
    - You should receive: `{"status": "ok", "service": "PDF Compare API"}`
 
-### Docker
+### Container (Docker/Podman)
 
-You can also run the tool using Docker without installing dependencies locally (uses Python 3.12).
+You can run the tool in a container without installing dependencies locally (uses Python 3.12 and uv).
 
-**Note:** The `.dockerignore` file excludes virtual environments and other unnecessary files from the build context, making builds faster and preventing issues with symbolic links on Windows.
+**Available container files:**
 
-1.  **Build the image**:
-    ```bash
-    docker build -t pdf-compare .
-    ```
+| File | Purpose |
+|------|---------|
+| `Containerfile` | CLI comparisons |
+| `api.Containerfile` | Flask API (production) |
 
-2.  **Run CLI comparison**:
-    Use the following command to mount your current directory to `/app` inside the container. This allows the container to read your input files and write the output report back to your host machine.
+Both files are OCI-compliant and work with Docker (`-f` flag required) and Podman.
 
-    **Linux/macOS**:
-    ```bash
-    docker run --rm -v "$(pwd):/app" pdf-compare /app/sample_files/original.pdf /app/sample_files/modified.pdf -o /app/sample_files/report.pdf
-    ```
+**Note:** The `.dockerignore` file excludes virtual environments and other unnecessary files from the build context.
 
-    **Windows (PowerShell)**:
-    ```powershell
-    docker run --rm -v "${PWD}:/app" pdf-compare /app/sample_files/original.pdf /app/sample_files/modified.pdf -o /app/sample_files/report.pdf
-    ```
+#### CLI Container
 
-3. **Run API server**:
-    ```bash
-    docker run -p 5000:5000 pdf-compare python api.py
-    ```
+Build and run the CLI tool in a container for one-off PDF comparisons.
+
+**Build:**
+```bash
+# Docker
+docker build -f Containerfile -t pdf-compare .
+
+# Podman (auto-detects Containerfile)
+podman build -t pdf-compare .
+
+# With custom Python version
+docker build -f Containerfile --build-arg PYTHON_VERSION=3.13 -t pdf-compare .
+podman build --build-arg PYTHON_VERSION=3.13 -t pdf-compare .
+```
+
+**Run comparisons:**
+
+```bash
+# Docker (Linux/macOS)
+docker run --rm \
+    -v "$(pwd):/app" \
+    pdf-compare /app/sample_files/original.pdf /app/sample_files/modified.pdf -o /app/sample_files/report.pdf
+
+# Docker (Windows PowerShell)
+docker run --rm `
+    -v "${PWD}:/app" `
+    pdf-compare /app/sample_files/original.pdf /app/sample_files/modified.pdf -o /app/sample_files/report.pdf
+
+# Podman (Linux - requires :Z for SELinux)
+podman run --rm \
+    -v "$(pwd):/app:Z" \
+    pdf-compare /app/sample_files/original.pdf /app/sample_files/modified.pdf -o /app/sample_files/report.pdf
+
+# Podman (macOS - no SELinux)
+podman run --rm \
+    -v "$(pwd):/app" \
+    pdf-compare /app/sample_files/original.pdf /app/sample_files/modified.pdf -o /app/sample_files/report.pdf
+```
+
+**CLI Container Build Arguments:**
+
+| Argument | Default | Description |
+|----------|---------|-------------|
+| `PYTHON_VERSION` | 3.12 | Python version to use |
+| `UID` | 1000 | User ID for non-root user |
+| `GID` | 1000 | Group ID for non-root user |
+
+#### API Container
+
+Build and run the production-ready Flask API with Gunicorn.
+
+**Build:**
+```bash
+# Docker
+docker build -f api.Containerfile -t pdf-compare-api .
+
+# Podman
+podman build -f api.Containerfile -t pdf-compare-api .
+```
+
+**Run (basic):**
+```bash
+# Docker
+docker run -d -p 5000:5000 --name pdf-api pdf-compare-api
+
+# Podman
+podman run -d -p 5000:5000 --name pdf-api pdf-compare-api
+```
+
+**Run (production recommended):**
+```bash
+# Docker
+docker run -d \
+    -p 5000:5000 \
+    -e WORKERS=4 \
+    -e THREADS=2 \
+    -e TIMEOUT=120 \
+    --memory=512m \
+    --cpus=1 \
+    --restart=unless-stopped \
+    --name pdf-api \
+    pdf-compare-api
+
+# Podman
+podman run -d \
+    -p 5000:5000 \
+    -e WORKERS=4 \
+    -e THREADS=2 \
+    -e TIMEOUT=120 \
+    --memory=512m \
+    --cpus=1 \
+    --restart=unless-stopped \
+    --name pdf-api \
+    pdf-compare-api
+```
+
+**Run (with read-only filesystem for security):**
+```bash
+# Docker
+docker run -d \
+    -p 5000:5000 \
+    --read-only \
+    --tmpfs /app/tmp \
+    --name pdf-api \
+    pdf-compare-api
+
+# Podman
+podman run -d \
+    -p 5000:5000 \
+    --read-only \
+    --tmpfs /app/tmp \
+    --name pdf-api \
+    pdf-compare-api
+```
+
+**API Container Environment Variables:**
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PORT` | 5000 | API port |
+| `HOST` | 0.0.0.0 | Bind address |
+| `WORKERS` | 2 | Gunicorn worker processes |
+| `THREADS` | 4 | Threads per worker |
+| `TIMEOUT` | 120 | Request timeout (seconds) |
+| `GRACEFUL_TIMEOUT` | 30 | Graceful shutdown timeout |
+| `KEEP_ALIVE` | 5 | Keep-alive timeout |
+| `MAX_REQUESTS` | 1000 | Requests before worker restart (prevents memory leaks) |
+| `MAX_REQUESTS_JITTER` | 50 | Random jitter for max requests |
+| `DEBUG` | false | Debug mode (never enable in production) |
+
+**Container management:**
+```bash
+# View logs
+docker logs pdf-api
+podman logs pdf-api
+
+# Follow logs
+docker logs -f pdf-api
+podman logs -f pdf-api
+
+# Health check
+curl http://localhost:5000/health
+
+# Stop container
+docker stop pdf-api
+podman stop pdf-api
+
+# Remove container
+docker rm pdf-api
+podman rm pdf-api
+```
+
+#### Podman SELinux Note
+
+On systems with SELinux (Fedora, RHEL, CentOS), use the `:Z` flag when mounting volumes:
+
+```bash
+# Without :Z → Permission denied
+podman run -v "$(pwd):/app" pdf-compare ...
+
+# With :Z → Works correctly
+podman run -v "$(pwd):/app:Z" pdf-compare ...
+```
+
+- `:Z` = Private volume (single container)
+- `:z` = Shared volume (multiple containers)
+
+On systems without SELinux (Ubuntu, Debian, macOS, Windows), the `:Z` flag is ignored safely.
 
 ## API Configuration
 
@@ -406,11 +541,11 @@ You can also run the tool using Docker without installing dependencies locally (
 For production, use a WSGI server like Gunicorn:
 
 ```bash
-# Install gunicorn
-pip install gunicorn
+# Add gunicorn to dependencies
+uv add gunicorn
 
 # Run with 4 workers
-gunicorn -w 4 -b 0.0.0.0:5000 api:app
+uv run gunicorn -w 4 -b 0.0.0.0:5000 api:app
 ```
 
 ### Security Considerations for API
@@ -461,8 +596,11 @@ PDF-Compare/
 ├── main.py                 # GUI entry point
 ├── pdf-compare.js          # Node.js CLI wrapper
 ├── package.json            # Node.js package configuration
+├── pyproject.toml          # Python dependencies (uv)
+├── uv.lock                 # Dependency lock file
 ├── sample_files/           # Sample PDFs for testing
-├── Dockerfile              # Docker configuration
+├── Containerfile           # OCI container (CLI)
+├── api.Containerfile       # OCI container (Flask API)
 └── README.md               # This file
 ```
 

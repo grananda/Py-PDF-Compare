@@ -27,7 +27,8 @@ tests/
 sample_files/
 .DS_Store
 Thumbs.db
-uv.lock
+# uv.lock - NOT ignored, needed for reproducible builds
+node_modules/
 .python-version
 output_*
 report_*
