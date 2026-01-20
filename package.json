@@ -1,29 +1,60 @@
 {
   "name": "pdf-compare",
   "version": "1.0.0",
-  "description": "Compare two PDF files and generate a visual diff report",
-  "main": "pdf-compare.js",
+  "description": "Compare two PDF files and generate a visual diff report with highlighted differences",
+  "main": "lib/index.js",
+  "types": "types/index.d.ts",
   "bin": {
-    "pdf-compare": "./pdf-compare.js"
+    "pdf-compare": "./lib/cli.js",
+    "pdf-compare-setup": "./scripts/postinstall.js"
   },
   "scripts": {
-    "compare": "node pdf-compare.js",
-    "test": "node pdf-compare.js sample-files/original.pdf sample-files/modified.pdf -o sample-files/test-output.pdf"
+    "postinstall": "node scripts/postinstall.js",
+    "setup": "node scripts/postinstall.js",
+    "check": "node lib/cli.js --check",
+    "test": "node lib/cli.js sample-files/original.pdf sample-files/modified.pdf -o sample-files/output.pdf",
+    "compare": "node lib/cli.js",
+    "pack": "npm pack --pack-destination dist"
   },
+  "files": [
+    "lib/",
+    "python/comparator.py",
+    "python/compare_pdf.py",
+    "python/requirements.txt",
+    "scripts/postinstall.js",
+    "types/",
+    "README.md",
+    "LICENSE"
+  ],
   "keywords": [
     "pdf",
     "compare",
     "diff",
     "visual",
-    "comparison"
+    "comparison",
+    "document",
+    "pdf-diff",
+    "pdf-compare"
   ],
-  "author": "",
+  "author": "grananda",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/grananda/PDF-Compare.git"
+    "url": "git+https://github.com/grananda/PDF-Compare.git"
   },
+  "bugs": {
+    "url": "https://github.com/grananda/PDF-Compare/issues"
+  },
+  "homepage": "https://github.com/grananda/PDF-Compare#readme",
   "engines": {
     "node": ">=14.0.0"
+  },
+  "os": [
+    "darwin",
+    "linux",
+    "win32"
+  ],
+  "publishConfig": {
+    "access": "public"
   }
 }

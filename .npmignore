@@ -1,0 +1,43 @@
+# Development files
+.venv/
+.git/
+.github/
+.idea/
+.claude/
+.gitignore
+
+# Python dev files (not needed for npm)
+python/main.py
+python/__pycache__/
+__pycache__/
+*.pyc
+pyproject.toml
+uv.lock
+
+# Build artifacts
+dist/
+build/
+*.spec
+*.exe
+
+# Container files
+*.Containerfile
+Containerfile
+.dockerignore
+
+# Scripts (development only)
+scripts/download_poppler.py
+scripts/build_windows.py
+
+# Sample files (development only)
+sample-files/
+
+# Vendor directory
+vendor/
+
+# IDE
+*.iml
+
+# OS files
+.DS_Store
+Thumbs.db

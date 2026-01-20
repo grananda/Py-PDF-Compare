@@ -1,527 +1,334 @@
-# PDF Comparison Tool
+# PDF-Compare
 
-A powerful Python-based tool for comparing PDF files. It provides both text-based analysis and visual side-by-side comparisons with content-aware highlighting.
+A powerful tool for comparing PDF files. Generates visual side-by-side comparison reports with content-aware highlighting.
 
 ## Features
 
 - **Visual Comparison**: Side-by-side view of two PDFs with intelligent page alignment
-- **Content-Aware Highlighting**: Detects text changes based on content, ignoring layout shifts (e.g., inserted paragraphs)
-- **Smart Page Alignment**: Automatically detects inserted/deleted pages and aligns the rest correctly
+- **Content-Aware Highlighting**: Detects text changes based on content, ignoring layout shifts
+- **Smart Page Alignment**: Automatically detects inserted/deleted pages
 - **Color-Coded Differences**:
-    - **Red**: Deleted text (on the original document)
-    - **Green**: Added text (on the modified document)
-- **Multiple Interfaces**:
-    - **GUI**: Easy-to-use Graphical User Interface
-    - **CLI**: Command Line Interface for automation (Python and Node.js)
-    - **Node.js Wrapper**: Direct Python integration without REST API
-    - **REST API**: HTTP API for integration with web applications
-- **Export**: Save the visual comparison report as a PDF
+  - **Red**: Deleted text (on the original document)
+  - **Green**: Added text (on the modified document)
+- **Multiple Interfaces**: CLI, Programmatic API, TypeScript support
+- **Cross-Platform**: Works on Windows, macOS, and Linux
 
-## Prerequisites
+## Installation
 
-### 1. Python
-Ensure you have Python 3.12 or higher installed.
+```bash
+npm install pdf-compare
+```
+
+The installation will automatically:
+1. Detect Python 3.12+ on your system
+2. Create an isolated virtual environment
+3. Install required Python dependencies
+
+### Prerequisites
+
+#### Python 3.12+
 
 **Windows:**
-1. Download from [python.org](https://www.python.org/downloads/)
-2. Run the installer
-3. **Important:** Check "Add Python to PATH" during installation
-4. Verify: `python --version`
+Download from [python.org](https://www.python.org/downloads/) and check "Add Python to PATH" during installation.
 
 **macOS:**
 ```bash
-# Using Homebrew (recommended)
 brew install python@3.12
-
-# Verify
-python3 --version
 ```
 
 **Linux (Ubuntu/Debian):**
 ```bash
-sudo apt update
 sudo apt install python3.12 python3.12-venv
-
-# Verify
-python3 --version
 ```
 
-**Linux (Fedora):**
-```bash
-sudo dnf install python3.12
+#### Poppler
 
-# Verify
-python3 --version
-```
+Poppler is required for PDF to image conversion.
 
-### 2. Package Manager (uv)
-This project uses **uv** for fast, reliable Python package management:
+**Windows:**
+1. Download from [Poppler for Windows](https://github.com/oschwartz10612/poppler-windows/releases/)
+2. Extract and add `Library\bin` folder to your PATH
 
-```bash
-# macOS/Linux
-curl -LsSf https://astral.sh/uv/install.sh | sh
-
-# Windows
-powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
-```
-
-### 3. Poppler
-This tool requires **Poppler** for converting PDFs to images.
-
-#### Windows
-1.  Download the latest binary from [Poppler for Windows](https://github.com/oschwartz10612/poppler-windows/releases/).
-2.  Extract the zip file.
-3.  Add the `bin` folder (e.g., `C:\poppler-xx\Library\bin`) to your System **PATH**.
-    - *Note: The code attempts to look for Poppler at `C:\poppler-25.11.0\Library\bin` by default. If you installed it elsewhere, ensure it is in your PATH.*
-
-#### macOS
-Install via Homebrew:
+**macOS:**
 ```bash
 brew install poppler
 ```
 
-#### Linux (Ubuntu/Debian)
-Install via apt:
+**Linux:**
 ```bash
-sudo apt-get install poppler-utils
-```
+# Ubuntu/Debian
+sudo apt install poppler-utils
 
-#### Linux (Fedora)
-Install via dnf:
-```bash
+# Fedora
 sudo dnf install poppler-utils
 ```
 
-## Installation
+## Quick Start
 
-1.  Clone the repository:
-    ```bash
-    git clone git@github.com:grananda/PDF-Compare.git
-    cd PDF-Compare
-    ```
-
-2.  Install Python dependencies:
-    ```bash
-    uv sync
-    ```
-
-## Usage
-
-### Graphical User Interface (GUI)
-Run the main script to launch the GUI:
+### CLI Usage
 
 ```bash
-uv run python main.py
-```
+# Compare two PDFs
+npx pdf-compare original.pdf modified.pdf -o diff.pdf
 
-1.  Select "PDF A" (Original).
-2.  Select "PDF B" (Modified).
-3.  Click **Compare PDFs**.
-4.  View the results and click **Download Report** to save.
+# Check dependencies
+npx pdf-compare --check
 
-### Windows Executable (for non-technical users)
-
-You can build a fully standalone `.exe` file that runs without Python or any other dependencies.
-
-#### Quick Start
-
-```bash
-# 1. Download Poppler binaries (one-time setup)
-uv run python scripts/download_poppler.py
-
-# 2. Build the executable
-uv run python build_exe.py
-
-# Result: dist/PDF Compare.exe (~100 MB)
-```
-
-#### Scripts Reference
-
-**`scripts/download_poppler.py`** - Downloads Poppler binaries for Windows
-
-```bash
-uv run python scripts/download_poppler.py
-```
-
-| Option | Description |
-|--------|-------------|
-| Downloads from | GitHub (oschwartz10612/poppler-windows) |
-| Installs to | `vendor/poppler/` |
-| Size | ~25 MB |
-| Required for | Bundling Poppler in the executable |
-
-The script:
-1. Downloads the latest Poppler release for Windows
-2. Extracts to `vendor/poppler/`
-3. Verifies the installation
-
-**`build_exe.py`** - Builds the Windows executable using PyInstaller
-
-```bash
-uv run python build_exe.py
-```
-
-| Option | Description |
-|--------|-------------|
-| Output | `dist/PDF Compare.exe` |
-| Size (with Poppler) | ~100 MB |
-| Size (without Poppler) | ~80 MB |
-| Dependencies | PyInstaller (dev dependency) |
-
-The script:
-1. Detects if Poppler is available in `vendor/poppler/`
-2. Cleans previous builds
-3. Runs PyInstaller with optimized settings
-4. Bundles all dependencies into a single `.exe`
-
-#### Distribution
-
-**For end users:**
-1. Copy `PDF Compare.exe` to the user's computer
-2. User double-clicks to run
-3. Optionally create a desktop shortcut
-
-**Requirements for end users:**
-- Windows 10/11
-- No other dependencies needed (Poppler is bundled)
-
-#### Customization
-
-**Add a custom icon:**
-1. Place your icon at `assets/icon.ico`
-2. Rebuild with `uv run python build_exe.py`
-
-**Build without bundled Poppler:**
-Skip the `download_poppler.py` step. The executable will be smaller (~80 MB) but users will need to install Poppler separately.
-
-#### Troubleshooting
-
-| Issue | Solution |
-|-------|----------|
-| "Poppler not found" at runtime | Re-run `download_poppler.py` and rebuild |
-| Build fails | Ensure `uv sync` was run and PyInstaller is installed |
-| Executable too large | This is normal; it includes Python, libraries, and Poppler |
-| Antivirus warning | False positive; PyInstaller executables are sometimes flagged |
-
-### Command Line Interface (CLI)
-Run the comparison from the terminal:
-
-```bash
-uv run python compare_pdf.py ./sample-files/original.pdf ./sample-files/modified.pdf -o ./sample-files/output_report.pdf
-```
-
-### Node.js CLI Wrapper
-
-A Node.js module that calls the Python script directly, without needing the REST API.
-
-#### Installation
-
-```bash
-# No external dependencies required - uses only Node.js built-in modules
-npm install  # Optional: creates package.json if needed
-```
-
-#### CLI Usage
-
-```bash
-# Basic usage
-node pdf-compare.js original.pdf modified.pdf -o report.pdf
-
-# Using npm script
-npm test  # Runs comparison with sample files
-
-# After npm link (global command)
-npm link
-pdf-compare original.pdf modified.pdf -o report.pdf
+# Run setup manually (if automatic setup failed)
+npx pdf-compare --setup
 
 # Show help
-node pdf-compare.js --help
+npx pdf-compare --help
 ```
 
-#### Programmatic API
+### Programmatic API
 
 ```javascript
-const { comparePDFs, findPython } = require('./pdf-compare');
+const pdfCompare = require('pdf-compare');
 
-// Basic usage
-async function example() {
-    const result = await comparePDFs(
+// Check if dependencies are ready
+const status = pdfCompare.checkDependencies();
+console.log(status);
+// { ready: true, python: true, poppler: true, ... }
+
+// Compare PDFs
+async function compare() {
+    const result = await pdfCompare.comparePDFs(
         'original.pdf',
         'modified.pdf',
         'report.pdf'
     );
 
-    console.log(result);
-    // {
-    //   success: true,
-    //   output: 'Report generated with 5 page(s)...',
-    //   pageCount: 5,
-    //   reportPath: '/absolute/path/to/report.pdf'
-    // }
+    if (result.pageCount === 0) {
+        console.log('No visual differences found');
+    } else {
+        console.log(`Report generated: ${result.reportPath}`);
+        console.log(`Pages with differences: ${result.pageCount}`);
+    }
 }
 
-// With options
-async function advancedExample() {
-    const result = await comparePDFs('a.pdf', 'b.pdf', 'out.pdf', {
-        pythonPath: '/usr/bin/python3',  // Custom Python path
-        cwd: '/path/to/pdf-compare',     // Working directory
-        timeout: 120000                   // Timeout in ms (default: 60000)
-    });
+compare();
+```
+
+### TypeScript
+
+```typescript
+import { comparePDFs, checkDependencies, CompareResult } from 'pdf-compare';
+
+const status = checkDependencies();
+if (!status.ready) {
+    console.error('Dependencies not configured');
+    process.exit(1);
 }
 
-// Find Python executable
-const pythonPath = await findPython();
-console.log(pythonPath);  // 'python3', 'python', or 'py'
+const result: CompareResult = await comparePDFs('a.pdf', 'b.pdf', 'diff.pdf');
 ```
 
-#### Return Values
+## API Reference
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `success` | boolean | Whether comparison succeeded |
-| `output` | string | Console output from Python script |
-| `pageCount` | number \| null | Number of pages in report (0 if no differences) |
-| `reportPath` | string \| null | Absolute path to generated report (null if no differences) |
+### `comparePDFs(fileA, fileB, outputPath, options?)`
 
-#### Error Handling
+Compare two PDF files and generate a visual diff report.
 
-```javascript
-try {
-    const result = await comparePDFs('a.pdf', 'b.pdf', 'out.pdf');
-} catch (error) {
-    // Possible errors:
-    // - "File not found: /path/to/file.pdf"
-    // - "Python not found. Please install Python 3..."
-    // - "compare_pdf.py not found in /path"
-    // - "Comparison timed out after 60000ms"
-    // - "Comparison failed (exit code 1): ..."
-    console.error(error.message);
-}
-```
+**Parameters:**
+- `fileA` (string): Path to the first PDF (Original)
+- `fileB` (string): Path to the second PDF (Modified)
+- `outputPath` (string): Path for the output report
+- `options` (object, optional):
+  - `timeout` (number): Timeout in ms (default: 120000)
+  - `pythonPath` (string): Custom Python path
 
-### REST API (for JavaScript/Node.js integration)
-
-Start the API server:
-
-```bash
-uv run python api.py
-
-# With custom configuration
-PORT=8080 DEBUG=true python api.py
-```
-
-The server will be available at `http://localhost:5000`
-
-#### API Endpoints
-
-**1. Health Check**
-```bash
-GET /health
-```
-
-**2. Compare PDFs (file upload)**
-```bash
-POST /compare
-Content-Type: multipart/form-data
-
-Parameters:
-- file_a: PDF file (original)
-- file_b: PDF file (modified)
-- output_format: 'pdf' or 'json' (optional, default: 'pdf')
-```
-
-**3. Compare PDFs from URLs**
-```bash
-POST /compare-urls
-Content-Type: application/json
-
-Body:
+**Returns:** `Promise<CompareResult>`
+```typescript
 {
-  "url_a": "https://example.com/original.pdf",
-  "url_b": "https://example.com/modified.pdf",
-  "output_format": "pdf"
+    success: boolean;
+    pageCount: number | null;  // 0 if no differences
+    reportPath: string | null; // null if no differences
+    output: string;
 }
 ```
 
-#### JavaScript Examples
+### `comparePDFsFromBuffer(bufferA, bufferB, options?)`
 
-**Browser (Fetch API):**
-```javascript
-async function comparePDFs(fileA, fileB) {
-    const formData = new FormData();
-    formData.append('file_a', fileA);
-    formData.append('file_b', fileB);
+Compare PDFs from Buffer data (useful for streams/uploads).
 
-    const response = await fetch('http://localhost:5000/compare', {
-        method: 'POST',
-        body: formData
-    });
+**Parameters:**
+- `bufferA` (Buffer): First PDF as Buffer
+- `bufferB` (Buffer): Second PDF as Buffer
+- `options` (object, optional): Same as `comparePDFs`
 
-    const blob = await response.blob();
-
-    // Download the PDF
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'comparison_report.pdf';
-    a.click();
+**Returns:** `Promise<CompareBufferResult>`
+```typescript
+{
+    success: boolean;
+    pageCount: number | null;
+    reportBuffer: Buffer | null;
+    output: string;
 }
 ```
 
-**Node.js (with axios):**
-```javascript
-const axios = require('axios');
-const FormData = require('form-data');
-const fs = require('fs');
+### `checkDependencies()`
 
-async function comparePDFs(pathA, pathB, outputPath) {
-    const formData = new FormData();
-    formData.append('file_a', fs.createReadStream(pathA));
-    formData.append('file_b', fs.createReadStream(pathB));
+Check if all dependencies are installed and configured.
 
-    const response = await axios.post('http://localhost:5000/compare', formData, {
-        headers: formData.getHeaders(),
-        responseType: 'arraybuffer'
-    });
-
-    fs.writeFileSync(outputPath, response.data);
+**Returns:** `DependencyStatus`
+```typescript
+{
+    ready: boolean;
+    python: boolean;
+    poppler: boolean;
+    pythonPath: string | null;
+    popplerPath: string | null;
 }
-
-// Usage
-comparePDFs('./original.pdf', './modified.pdf', './report.pdf');
 ```
 
-**cURL:**
+### `runSetup(options?)`
+
+Manually run the Python environment setup.
+
+**Parameters:**
+- `options` (object, optional):
+  - `force` (boolean): Force reinstall
+  - `quiet` (boolean): Suppress output
+
+**Returns:** `Promise<SetupResult>`
+
+### `getVersion()`
+
+Get the package version.
+
+**Returns:** `string`
+
+## Environment Variables
+
+- `PDF_COMPARE_SKIP_SETUP=1`: Skip automatic setup during npm install
+
+## How It Works
+
+1. **Text Extraction**: Extracts text from each page of both PDFs
+2. **Similarity Scoring**: Calculates similarity between pages using sequence matching
+3. **Smart Alignment**: Detects insertions, deletions, and shifts between documents
+4. **Visual Highlighting**: Highlights text differences within aligned pages
+5. **Report Generation**: Creates a side-by-side PDF report
+
+### Example: Inserted Page
+
+If you insert a page in the middle of a document:
+- The inserted page is shown with a blank page on the left, labeled "Added"
+- Subsequent pages are correctly aligned and labeled as "Shifted"
+
+## Project Structure
+
+```
+pdf-compare/
+├── lib/
+│   ├── index.js            # Main API exports
+│   ├── cli.js              # CLI entry point
+│   ├── python-bridge.js    # Python subprocess handling
+│   └── setup.js            # Environment setup
+├── python/
+│   ├── comparator.py       # Core comparison logic
+│   ├── compare_pdf.py      # Python CLI
+│   ├── main.py             # GUI application
+│   └── requirements.txt    # Python dependencies (npm)
+├── scripts/
+│   ├── postinstall.js      # Auto-setup on npm install
+│   ├── build_windows.py    # Build Windows executable
+│   └── download_poppler.py # Download Poppler for Windows
+├── sample-files/           # Test PDFs for development
+│   ├── original.pdf
+│   ├── modified.pdf
+│   ├── modified_extra_page.pdf
+│   └── modified_removed_page.pdf
+├── types/
+│   └── index.d.ts          # TypeScript definitions
+├── Containerfile           # Docker/Podman build
+├── package.json            # npm configuration
+└── pyproject.toml          # Python dependencies (dev)
+```
+
+## Troubleshooting
+
+### Setup failed: Python not found
+
+Ensure Python 3.12+ is installed and in your PATH:
 ```bash
-# Compare files
-curl -X POST http://localhost:5000/compare \
-  -F "file_a=@./sample-files/original.pdf" \
-  -F "file_b=@./sample-files/modified.pdf" \
-  -F "output_format=pdf" \
-  --output comparison_report.pdf
-
-# Get JSON response
-curl -X POST http://localhost:5000/compare \
-  -F "file_a=@./original.pdf" \
-  -F "file_b=@./modified.pdf" \
-  -F "output_format=json"
+python --version  # or python3 --version
 ```
 
-See `client-example.js` for complete HTML form example and more usage patterns.
+After installing Python, run:
+```bash
+npx pdf-compare --setup
+```
 
-#### Using Postman
+### Poppler not found
 
-**Method 1: Upload Files**
+Install Poppler for your platform (see Prerequisites above), then verify:
+```bash
+npx pdf-compare --check
+```
 
-1. **Create a new request**
-   - Method: `POST`
-   - URL: `http://localhost:5000/compare`
+### Permission errors on Linux/macOS
 
-2. **Set up the body**
-   - Go to the **Body** tab
-   - Select **form-data**
-   - Add the following fields:
-     - Key: `file_a` | Type: `File` | Value: Select your original PDF
-     - Key: `file_b` | Type: `File` | Value: Select your modified PDF
-     - Key: `output_format` | Type: `Text` | Value: `pdf` (or `json`)
+The virtual environment is created in `node_modules/pdf-compare/.venv`. Ensure you have write permissions.
 
-3. **Send the request**
-   - Click **Send**
-   - For PDF output: Click **Save Response** → **Save to a file** → Save as `.pdf`
-   - For JSON output: View the response in the **Body** tab
+### Skipping automatic setup in CI
 
-**Method 2: Compare from URLs**
+Set the environment variable:
+```bash
+PDF_COMPARE_SKIP_SETUP=1 npm install
+```
 
-1. **Create a new request**
-   - Method: `POST`
-   - URL: `http://localhost:5000/compare-urls`
+## Development
 
-2. **Set up the headers**
-   - Go to the **Headers** tab
-   - Add: `Content-Type: application/json`
+### From Source
 
-3. **Set up the body**
-   - Go to the **Body** tab
-   - Select **raw** and **JSON**
-   - Enter:
-     ```json
-     {
-       "url_a": "https://example.com/original.pdf",
-       "url_b": "https://example.com/modified.pdf",
-       "output_format": "pdf"
-     }
-     ```
+```bash
+git clone https://github.com/grananda/PDF-Compare.git
+cd PDF-Compare
+npm install
+```
 
-4. **Send the request**
-   - Click **Send**
-   - Save the response as a `.pdf` file
+**npm scripts:**
+```bash
+npm run check    # Verify dependencies are installed
+npm run setup    # Run Python environment setup manually
+npm test         # Compare sample files (quick test)
+npm run compare -- a.pdf b.pdf -o output.pdf  # Compare any PDFs
+```
 
-**Testing the Health Endpoint**
+**Sample files included for testing:**
+- `sample-files/original.pdf` - Base document
+- `sample-files/modified.pdf` - Document with text changes
+- `sample-files/modified_extra_page.pdf` - Document with added page
+- `sample-files/modified_removed_page.pdf` - Document with removed page
 
-1. **Create a new request**
-   - Method: `GET`
-   - URL: `http://localhost:5000/health`
+### Docker
 
-2. **Send the request**
-   - You should receive: `{"status": "ok", "service": "PDF Compare API"}`
-
-### Container (Docker/Podman)
-
-You can run the tool in a container without installing dependencies locally (uses Python 3.12 and uv).
-
-**Available container files:**
-
-| File | Purpose |
-|------|---------|
-| `Containerfile` | CLI comparisons |
-| `api.Containerfile` | Flask API (production) |
-
-Both files are OCI-compliant and work with Docker (`-f` flag required) and Podman.
-
-**Note:** The `.dockerignore` file excludes virtual environments and other unnecessary files from the build context.
-
-#### CLI Container
-
-Build and run the CLI tool in a container for one-off PDF comparisons.
+Run PDF comparisons in a container without installing dependencies locally.
 
 **Build:**
 ```bash
 # Docker
 docker build -f Containerfile -t pdf-compare .
 
-# Podman (auto-detects Containerfile)
+# Podman
 podman build -t pdf-compare .
-
-# With custom Python version
-docker build -f Containerfile --build-arg PYTHON_VERSION=3.13 -t pdf-compare .
-podman build --build-arg PYTHON_VERSION=3.13 -t pdf-compare .
 ```
 
-**Run comparisons:**
-
+**Run comparison:**
 ```bash
 # Docker (Linux/macOS)
-docker run --rm \
-    -v "$(pwd):/app" \
-    pdf-compare /app/sample-files/original.pdf /app/sample-files/modified.pdf -o /app/sample-files/report.pdf
+docker run --rm -v "$(pwd):/data" pdf-compare /data/original.pdf /data/modified.pdf -o /data/report.pdf
 
 # Docker (Windows PowerShell)
-docker run --rm `
-    -v "${PWD}:/app" `
-    pdf-compare /app/sample-files/original.pdf /app/sample-files/modified.pdf -o /app/sample-files/report.pdf
+docker run --rm -v "${PWD}:/data" pdf-compare /data/original.pdf /data/modified.pdf -o /data/report.pdf
 
-# Podman (Linux - requires :Z for SELinux)
-podman run --rm \
-    -v "$(pwd):/app:Z" \
-    pdf-compare /app/sample-files/original.pdf /app/sample-files/modified.pdf -o /app/sample-files/report.pdf
-
-# Podman (macOS - no SELinux)
-podman run --rm \
-    -v "$(pwd):/app" \
-    pdf-compare /app/sample-files/original.pdf /app/sample-files/modified.pdf -o /app/sample-files/report.pdf
+# Podman (Linux with SELinux)
+podman run --rm -v "$(pwd):/data:Z" pdf-compare /data/original.pdf /data/modified.pdf -o /data/report.pdf
 ```
 
-**CLI Container Build Arguments:**
+**Build arguments:**
 
 | Argument | Default | Description |
 |----------|---------|-------------|
@@ -529,204 +336,24 @@ podman run --rm \
 | `UID` | 1000 | User ID for non-root user |
 | `GID` | 1000 | Group ID for non-root user |
 
-#### API Container
+**Note:** On SELinux systems (Fedora, RHEL), use `:Z` flag when mounting volumes.
 
-Build and run the production-ready Flask API with Gunicorn.
-
-**Build:**
-```bash
-# Docker
-docker build -f api.Containerfile -t pdf-compare-api .
-
-# Podman
-podman build -f api.Containerfile -t pdf-compare-api .
-```
-
-**Run (basic):**
-```bash
-# Docker
-docker run -d -p 5000:5000 --name pdf-api pdf-compare-api
-
-# Podman
-podman run -d -p 5000:5000 --name pdf-api pdf-compare-api
-```
-
-**Run (production recommended):**
-```bash
-# Docker
-docker run -d \
-    -p 5000:5000 \
-    -e WORKERS=4 \
-    -e THREADS=2 \
-    -e TIMEOUT=120 \
-    --memory=512m \
-    --cpus=1 \
-    --restart=unless-stopped \
-    --name pdf-api \
-    pdf-compare-api
-
-# Podman
-podman run -d \
-    -p 5000:5000 \
-    -e WORKERS=4 \
-    -e THREADS=2 \
-    -e TIMEOUT=120 \
-    --memory=512m \
-    --cpus=1 \
-    --restart=unless-stopped \
-    --name pdf-api \
-    pdf-compare-api
-```
-
-**Run (with read-only filesystem for security):**
-```bash
-# Docker
-docker run -d \
-    -p 5000:5000 \
-    --read-only \
-    --tmpfs /app/tmp \
-    --name pdf-api \
-    pdf-compare-api
-
-# Podman
-podman run -d \
-    -p 5000:5000 \
-    --read-only \
-    --tmpfs /app/tmp \
-    --name pdf-api \
-    pdf-compare-api
-```
-
-**API Container Environment Variables:**
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `PORT` | 5000 | API port |
-| `HOST` | 0.0.0.0 | Bind address |
-| `WORKERS` | 2 | Gunicorn worker processes |
-| `THREADS` | 4 | Threads per worker |
-| `TIMEOUT` | 120 | Request timeout (seconds) |
-| `GRACEFUL_TIMEOUT` | 30 | Graceful shutdown timeout |
-| `KEEP_ALIVE` | 5 | Keep-alive timeout |
-| `MAX_REQUESTS` | 1000 | Requests before worker restart (prevents memory leaks) |
-| `MAX_REQUESTS_JITTER` | 50 | Random jitter for max requests |
-| `DEBUG` | false | Debug mode (never enable in production) |
-
-**Container management:**
-```bash
-# View logs
-docker logs pdf-api
-podman logs pdf-api
-
-# Follow logs
-docker logs -f pdf-api
-podman logs -f pdf-api
-
-# Health check
-curl http://localhost:5000/health
-
-# Stop container
-docker stop pdf-api
-podman stop pdf-api
-
-# Remove container
-docker rm pdf-api
-podman rm pdf-api
-```
-
-#### Podman SELinux Note
-
-On systems with SELinux (Fedora, RHEL, CentOS), use the `:Z` flag when mounting volumes:
+### GUI Application
 
 ```bash
-# Without :Z → Permission denied
-podman run -v "$(pwd):/app" pdf-compare ...
-
-# With :Z → Works correctly
-podman run -v "$(pwd):/app:Z" pdf-compare ...
+uv run python python/main.py
 ```
 
-- `:Z` = Private volume (single container)
-- `:z` = Shared volume (multiple containers)
-
-On systems without SELinux (Ubuntu, Debian, macOS, Windows), the `:Z` flag is ignored safely.
-
-## API Configuration
-
-### Environment Variables
-
-- `PORT`: Server port (default: 5000)
-- `DEBUG`: Enable debug mode (default: False)
-
-### Production Deployment
-
-For production, use a WSGI server like Gunicorn:
+### Windows Executable
 
 ```bash
-# Add gunicorn to dependencies
-uv add gunicorn
+# Download Poppler (one-time)
+uv run python scripts/download_poppler.py
 
-# Run with 4 workers
-uv run gunicorn -w 4 -b 0.0.0.0:5000 api:app
-```
+# Build executable
+uv run python scripts/build_windows.py
 
-### Security Considerations for API
-
-⚠️ **Important for production:**
-
-1. Configure file size limits
-2. Validate file types
-3. Implement authentication/authorization
-4. Configure CORS for specific domains:
-   ```python
-   CORS(app, resources={r"/*": {"origins": "https://your-domain.com"}})
-   ```
-5. Use HTTPS
-6. Implement rate limiting
-7. Add request timeout limits
-
-## How It Works
-
-### Smart Page Alignment
-
-The tool uses a content-similarity algorithm to intelligently align pages between documents:
-
-1. **Text Extraction**: Extracts text from each page of both PDFs
-2. **Similarity Scoring**: Calculates similarity between pages using sequence matching
-3. **Lookahead Detection**: Looks ahead up to 3 pages to detect insertions/deletions
-4. **Smart Alignment**:
-   - Detects when pages are inserted in the modified PDF
-   - Detects when pages are deleted from the original PDF
-   - Properly aligns remaining pages after insertions/deletions
-5. **Visual Highlighting**: Highlights text differences within aligned pages
-
-### Example: Inserted Page
-
-If you insert a page in the middle of a document:
-- The inserted page is shown with a blank page on the left and labeled as "Added"
-- All subsequent pages are correctly aligned (e.g., original page 6 → modified page 7)
-- Pages are labeled as "Shifted" to indicate the alignment adjustment
-
-## Project Structure
-
-```
-PDF-Compare/
-├── api.py                  # REST API server
-├── build_exe.py            # Windows executable builder
-├── client-example.js       # JavaScript client examples (API usage)
-├── compare_pdf.py          # Python CLI entry point
-├── comparator.py           # Core comparison logic
-├── main.py                 # GUI entry point
-├── pdf-compare.js          # Node.js CLI wrapper
-├── package.json            # Node.js package configuration
-├── pyproject.toml          # Python dependencies (uv)
-├── uv.lock                 # Dependency lock file
-├── scripts/
-│   └── download_poppler.py # Poppler downloader for Windows
-├── sample-files/           # Sample PDFs for testing
-├── Containerfile           # OCI container (CLI)
-├── api.Containerfile       # OCI container (Flask API)
-└── README.md               # This file
+# Result: dist/PDF Compare.exe
 ```
 
 ## License
@@ -737,21 +364,6 @@ PDF-Compare/
 
 Contributions are welcome! Please feel free to submit a Pull Request.
 
-## Troubleshooting
-
-### Poppler not found
-- **Windows**: Ensure Poppler's `bin` folder is in your System PATH
-- **macOS/Linux**: Install poppler-utils via package manager
-
-### API CORS errors
-- The API has CORS enabled by default for development
-- For production, configure CORS to allow only specific domains
-
-### Large PDF files
-- The default file size limit is ~16MB
-- Configure Flask's `MAX_CONTENT_LENGTH` for larger files
-- Consider using background tasks for very large PDFs
-
 ## Support
 
-For issues, questions, or contributions, please visit the [GitHub repository](https://github.com/grananda/PDF-Compare).
+For issues, questions, or contributions, visit: https://github.com/grananda/PDF-Compare

@@ -23,8 +23,9 @@ ARG GID=1000
 RUN groupadd --gid ${GID} appuser \
     && useradd --uid ${UID} --gid ${GID} --create-home --shell /bin/bash appuser
 
-# Set working directory
+# Set working directory and ensure appuser owns it
 WORKDIR /app
+RUN chown appuser:appuser /app
 
 # Environment configuration
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -54,11 +55,7 @@ COPY --chown=appuser:appuser pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev
 
 # Copy application code
-COPY --chown=appuser:appuser . .
+COPY --chown=appuser:appuser python/ ./python/
 
 # Default command (can be overridden)
-ENTRYPOINT ["uv", "run", "python", "compare_pdf.py"]
-
-# Health check for API mode (ignored in CLI mode)
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -sf http://localhost:5000/health || exit 1
+ENTRYPOINT ["uv", "run", "python", "python/compare_pdf.py"]
