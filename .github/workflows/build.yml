@@ -1,4 +1,4 @@
-name: Build Binaries
+name: Build and Release
 
 on:
   push:
@@ -8,12 +8,15 @@ on:
   workflow_dispatch:
 
 jobs:
-  check-version:
+  check-versions:
     runs-on: ubuntu-latest
     outputs:
-      version: ${{ steps.get_version.outputs.version }}
-      tag_exists: ${{ steps.check_tag.outputs.exists }}
-      should_release: ${{ steps.check_tag.outputs.should_release }}
+      # Python/Binary version
+      bin_version: ${{ steps.get_bin_version.outputs.version }}
+      should_release_bin: ${{ steps.check_bin_tag.outputs.should_release }}
+      # NPM version
+      npm_version: ${{ steps.get_npm_version.outputs.version }}
+      should_publish_npm: ${{ steps.check_npm_tag.outputs.should_publish }}
 
     steps:
       - name: Checkout repository
@@ -21,33 +24,56 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Get version from pyproject.toml
-        id: get_version
+      # Binary version from pyproject.toml
+      - name: Get binary version from pyproject.toml
+        id: get_bin_version
         run: |
           VERSION=$(grep -Po '(?<=^version = ")[^"]*' pyproject.toml)
           echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "Detected version: $VERSION"
+          echo "Binary version: $VERSION"
 
-      - name: Check if tag exists
-        id: check_tag
+      - name: Check if binary tag exists
+        id: check_bin_tag
         run: |
-          if git rev-parse "v${{ steps.get_version.outputs.version }}" >/dev/null 2>&1; then
-            echo "exists=true" >> $GITHUB_OUTPUT
+          if git rev-parse "v${{ steps.get_bin_version.outputs.version }}" >/dev/null 2>&1; then
             echo "should_release=false" >> $GITHUB_OUTPUT
-            echo "Tag v${{ steps.get_version.outputs.version }} already exists"
+            echo "Tag v${{ steps.get_bin_version.outputs.version }} already exists"
           else
-            echo "exists=false" >> $GITHUB_OUTPUT
             if [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" == "refs/heads/main" ]]; then
               echo "should_release=true" >> $GITHUB_OUTPUT
-              echo "Tag v${{ steps.get_version.outputs.version }} does not exist - will create release"
+              echo "Tag v${{ steps.get_bin_version.outputs.version }} does not exist - will create release"
             else
               echo "should_release=false" >> $GITHUB_OUTPUT
-              echo "Tag does not exist but not on main branch push - skipping release"
+              echo "Not on main branch push - skipping binary release"
+            fi
+          fi
+
+      # NPM version from package.json
+      - name: Get npm version from package.json
+        id: get_npm_version
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "NPM version: $VERSION"
+
+      - name: Check if npm tag exists
+        id: check_npm_tag
+        run: |
+          if git rev-parse "npm-v${{ steps.get_npm_version.outputs.version }}" >/dev/null 2>&1; then
+            echo "should_publish=false" >> $GITHUB_OUTPUT
+            echo "Tag npm-v${{ steps.get_npm_version.outputs.version }} already exists"
+          else
+            if [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" == "refs/heads/main" ]]; then
+              echo "should_publish=true" >> $GITHUB_OUTPUT
+              echo "Tag npm-v${{ steps.get_npm_version.outputs.version }} does not exist - will publish to npm"
+            else
+              echo "should_publish=false" >> $GITHUB_OUTPUT
+              echo "Not on main branch push - skipping npm publish"
             fi
           fi
 
   build:
-    needs: check-version
+    needs: check-versions
     strategy:
       fail-fast: false
       matrix:
@@ -128,10 +154,10 @@ jobs:
           path: ${{ matrix.artifact_path }}
           if-no-files-found: error
 
-  release:
-    needs: [check-version, build]
+  release-binaries:
+    needs: [check-versions, build]
     runs-on: ubuntu-latest
-    if: needs.check-version.outputs.should_release == 'true'
+    if: needs.check-versions.outputs.should_release_bin == 'true'
 
     permissions:
       contents: write
@@ -162,7 +188,7 @@ jobs:
           # Windows executable
           cp artifacts/PDF-Compare.exe/PDF\ Compare.exe release/PDF-Compare-windows.exe
 
-          # macOS app bundle (zip it) - the .app is extracted directly into the artifact folder
+          # macOS app bundle (zip it)
           cd artifacts/PDF-Compare-macOS
           zip -r ../../release/PDF-Compare-macOS.zip .
           cd ../..
@@ -171,16 +197,55 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          VERSION="v${{ needs.check-version.outputs.version }}"
+          VERSION="v${{ needs.check-versions.outputs.bin_version }}"
 
-          # Create the tag
           git tag "$VERSION"
           git push origin "$VERSION"
 
-          # Create the release using gh cli
           gh release create "$VERSION" \
             release/pdf-compare-linux \
             release/PDF-Compare-windows.exe \
             release/PDF-Compare-macOS.zip \
             --title "$VERSION" \
             --generate-notes
+
+  publish-npm:
+    needs: check-versions
+    runs-on: ubuntu-latest
+    if: needs.check-versions.outputs.should_publish_npm == 'true'
+
+    permissions:
+      contents: write
+      id-token: write  # Required for OIDC trusted publishing
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Publish to npm (OIDC)
+        run: |
+          VERSION="${{ needs.check-versions.outputs.npm_version }}"
+
+          # Determine npm tag based on version
+          if [[ "$VERSION" == *"rc"* ]] || [[ "$VERSION" == *"alpha"* ]] || [[ "$VERSION" == *"beta"* ]]; then
+            NPM_TAG="next"
+          else
+            NPM_TAG="latest"
+          fi
+
+          echo "Publishing version $VERSION with tag $NPM_TAG"
+          npm publish --tag "$NPM_TAG"
+
+      - name: Create npm version tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="npm-v${{ needs.check-versions.outputs.npm_version }}"
+          git tag "$VERSION"
+          git push origin "$VERSION"
