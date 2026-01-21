@@ -1,6 +1,6 @@
 [project]
 name = "pdf-compare"
-version = "2026.01.001rc1"
+version = "2026.1.1-rc1"
 description = "PDF comparison tool with GUI."
 readme = "README.md"
 requires-python = ">=3.12"

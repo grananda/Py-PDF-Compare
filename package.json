@@ -1,6 +1,6 @@
 {
   "name": "pdf-compare",
-  "version": "2026.01.001rc1",
+  "version": "2026.1.1-rc1",
   "description": "Compare two PDF files and generate a visual diff report with highlighted differences",
   "main": "lib/index.js",
   "types": "types/index.d.ts",
