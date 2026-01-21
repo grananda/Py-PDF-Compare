@@ -3,14 +3,51 @@ name: Build Binaries
 on:
   push:
     branches: [main]
-    tags:
-      - 'v*'
   pull_request:
     branches: [main]
   workflow_dispatch:
 
 jobs:
+  check-version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.get_version.outputs.version }}
+      tag_exists: ${{ steps.check_tag.outputs.exists }}
+      should_release: ${{ steps.check_tag.outputs.should_release }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get version from pyproject.toml
+        id: get_version
+        run: |
+          VERSION=$(grep -Po '(?<=^version = ")[^"]*' pyproject.toml)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Detected version: $VERSION"
+
+      - name: Check if tag exists
+        id: check_tag
+        run: |
+          if git rev-parse "v${{ steps.get_version.outputs.version }}" >/dev/null 2>&1; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "should_release=false" >> $GITHUB_OUTPUT
+            echo "Tag v${{ steps.get_version.outputs.version }} already exists"
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+            if [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" == "refs/heads/main" ]]; then
+              echo "should_release=true" >> $GITHUB_OUTPUT
+              echo "Tag v${{ steps.get_version.outputs.version }} does not exist - will create release"
+            else
+              echo "should_release=false" >> $GITHUB_OUTPUT
+              echo "Tag does not exist but not on main branch push - skipping release"
+            fi
+          fi
+
   build:
+    needs: check-version
     strategy:
       fail-fast: false
       matrix:
@@ -92,18 +129,27 @@ jobs:
           if-no-files-found: error
 
   release:
-    needs: build
+    needs: [check-version, build]
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: needs.check-version.outputs.should_release == 'true'
 
     permissions:
       contents: write
 
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
           path: artifacts
+
+      - name: Debug - List artifacts structure
+        run: |
+          echo "=== Artifacts structure ==="
+          find artifacts -type f -o -type d | head -100
+          echo "==========================="
 
       - name: Prepare release assets
         run: |
@@ -114,20 +160,27 @@ jobs:
           chmod +x release/pdf-compare-linux
 
           # Windows executable
-          cp "artifacts/PDF-Compare.exe/PDF Compare.exe" release/PDF-Compare-windows.exe
+          cp artifacts/PDF-Compare.exe/PDF\ Compare.exe release/PDF-Compare-windows.exe
 
-          # macOS app bundle (zip it)
+          # macOS app bundle (zip it) - the .app is extracted directly into the artifact folder
           cd artifacts/PDF-Compare-macOS
-          zip -r ../../release/PDF-Compare-macOS.zip "PDF Compare.app"
+          zip -r ../../release/PDF-Compare-macOS.zip .
           cd ../..
 
-      - name: Create Release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: |
-            release/pdf-compare-linux
-            release/PDF-Compare-windows.exe
-            release/PDF-Compare-macOS.zip
-          generate_release_notes: true
-          draft: false
-          prerelease: ${{ contains(github.ref, '-') }}
+      - name: Create tag and release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="v${{ needs.check-version.outputs.version }}"
+
+          # Create the tag
+          git tag "$VERSION"
+          git push origin "$VERSION"
+
+          # Create the release using gh cli
+          gh release create "$VERSION" \
+            release/pdf-compare-linux \
+            release/PDF-Compare-windows.exe \
+            release/PDF-Compare-macOS.zip \
+            --title "$VERSION" \
+            --generate-notes
