@@ -129,6 +129,12 @@ def main():
         spec_file.unlink()
         print(f"  Removed {spec_file.name}")
 
+    # Also clean PyInstaller cache to avoid symlink conflicts
+    pyinstaller_cache = Path.home() / "Library" / "Application Support" / "pyinstaller"
+    if pyinstaller_cache.exists():
+        shutil.rmtree(pyinstaller_cache)
+        print(f"  Removed PyInstaller cache")
+
     # PyInstaller arguments
     print("\n[2/4] Configuring PyInstaller...")
 
@@ -137,13 +143,12 @@ def main():
 
     pyinstaller_args = [
         "pyinstaller",
-        "--onefile",              # Single executable file
         "--windowed",             # No console window (GUI app) - creates .app bundle
         "--name=PDF Compare",     # Application name
         "--clean",                # Clean cache before building
-        # Add data files (from python/ folder) - macOS uses : as separator
-        "--add-data=python/comparator.py:python",
-        "--add-data=python/compare_pdf.py:python",
+        "--noconfirm",            # Don't ask for confirmation
+        # Note: comparator.py and compare_pdf.py are imported as modules by main.py,
+        # so PyInstaller will include them automatically. No need for --add-data.
         # Collect all customtkinter and tkinter dependencies
         "--collect-all=customtkinter",
         "--collect-all=tkinter",
@@ -212,24 +217,85 @@ def main():
 
     # Run PyInstaller
     print("\n[3/4] Building application (this may take a few minutes)...")
-    try:
-        result = subprocess.run(
-            pyinstaller_args,
-            check=True,
-            capture_output=False
-        )
-    except subprocess.CalledProcessError as e:
-        print(f"\nError: PyInstaller failed with exit code {e.returncode}")
-        sys.exit(1)
-    except FileNotFoundError:
-        print("\nError: PyInstaller not found. Install with: uv add pyinstaller --dev")
-        sys.exit(1)
 
-    # Verify output
-    print("\n[4/4] Verifying build...")
+    # Workaround for PyInstaller symlink bug with Homebrew Python on macOS
+    # The bug causes "FileExistsError: File exists" when creating symlinks
+    # during the COLLECT phase. We remove the conflicting file before it fails.
+    dist_internal = project_root / "dist" / "PDF Compare" / "_internal"
+    python_symlink = dist_internal / "Python"
+
+    def remove_conflicting_symlink():
+        """Remove the Python symlink that conflicts with Python.framework symlink."""
+        if python_symlink.exists() or python_symlink.is_symlink():
+            python_symlink.unlink()
+
+    # Run PyInstaller with retry logic for symlink issue
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            # Clean up potential symlink conflict before each attempt
+            remove_conflicting_symlink()
+
+            result = subprocess.run(
+                pyinstaller_args,
+                check=True,
+                capture_output=False
+            )
+            break  # Success, exit retry loop
+        except subprocess.CalledProcessError as e:
+            if attempt < max_retries - 1:
+                print(f"\n  Retry {attempt + 1}/{max_retries} - cleaning up symlink conflicts...")
+                remove_conflicting_symlink()
+                # Also try removing the entire _internal directory
+                if dist_internal.exists():
+                    shutil.rmtree(dist_internal)
+            else:
+                print(f"\nError: PyInstaller failed with exit code {e.returncode}")
+                sys.exit(1)
+        except FileNotFoundError:
+            print("\nError: PyInstaller not found. Install with: uv add pyinstaller --dev")
+            sys.exit(1)
+
+    # Verify output and re-sign the application
+    print("\n[4/4] Verifying build and signing...")
     app_path = project_root / "dist" / "PDF Compare.app"
 
     if app_path.exists():
+        # Re-sign all binaries in the app bundle to fix Team ID mismatch
+        # This is required because Homebrew Python has a different signature
+        print("  Re-signing application bundle...")
+        try:
+            # First, remove all existing signatures and re-sign with ad-hoc identity
+            # Sign frameworks first, then the main executable
+            frameworks_path = app_path / "Contents" / "Frameworks"
+            if frameworks_path.exists():
+                # Sign all dylibs and frameworks
+                for item in frameworks_path.rglob("*"):
+                    if item.is_file() and (item.suffix in [".dylib", ".so"] or "Python" in item.name):
+                        subprocess.run(
+                            ["codesign", "--force", "--sign", "-", "--deep", str(item)],
+                            capture_output=True
+                        )
+                # Sign Python.framework specifically
+                python_framework = frameworks_path / "Python.framework"
+                if python_framework.exists():
+                    subprocess.run(
+                        ["codesign", "--force", "--sign", "-", "--deep", str(python_framework)],
+                        capture_output=True
+                    )
+
+            # Sign the main app bundle
+            result = subprocess.run(
+                ["codesign", "--force", "--sign", "-", "--deep", str(app_path)],
+                capture_output=True,
+                text=True
+            )
+            if result.returncode == 0:
+                print("  Application signed successfully")
+            else:
+                print(f"  Warning: Signing may have issues: {result.stderr}")
+        except Exception as e:
+            print(f"  Warning: Could not re-sign application: {e}")
         # Get size of the entire .app bundle
         total_size = sum(f.stat().st_size for f in app_path.rglob('*') if f.is_file())
         size_mb = total_size / (1024 * 1024)
