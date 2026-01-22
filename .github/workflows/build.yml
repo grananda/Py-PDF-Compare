@@ -244,7 +244,7 @@ jobs:
           fi
 
           echo "Publishing version $VERSION with tag $NPM_TAG"
-          npm publish --tag "$NPM_TAG"
+          npm publish --provenance --access public --tag "$NPM_TAG"
 
       - name: Create npm version tag
         env:
