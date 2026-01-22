@@ -86,7 +86,7 @@ jobs:
           - os: macos-latest
             name: macOS
             artifact_name: PDF-Compare-macOS
-            artifact_path: dist/PDF Compare.app
+            artifact_path: dist/PDF-Compare-macOS.dmg
             build_script: scripts/build_macos.py
           - os: windows-latest
             name: Windows
@@ -119,10 +119,10 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y poppler-utils
 
-      # macOS: Install Poppler via Homebrew
-      - name: Install Poppler (macOS)
+      # macOS: Install Poppler and create-dmg via Homebrew
+      - name: Install Poppler and create-dmg (macOS)
         if: matrix.os == 'macos-latest'
-        run: brew install poppler
+        run: brew install poppler create-dmg
 
       # Windows: Download Poppler
       - name: Install Poppler (Windows)
@@ -136,6 +136,21 @@ jobs:
 
       - name: Build executable
         run: uv run python ${{ matrix.build_script }}
+
+      # macOS: Create DMG from app bundle
+      - name: Create DMG (macOS)
+        if: matrix.os == 'macos-latest'
+        run: |
+          create-dmg \
+            --volname "PDF Compare" \
+            --window-pos 200 120 \
+            --window-size 600 400 \
+            --icon-size 100 \
+            --icon "PDF Compare.app" 150 185 \
+            --hide-extension "PDF Compare.app" \
+            --app-drop-link 450 185 \
+            "dist/PDF-Compare-macOS.dmg" \
+            "dist/PDF Compare.app"
 
       # Upload artifact (different handling for .app bundle on macOS)
       - name: Upload artifact (Linux/Windows)
@@ -188,10 +203,8 @@ jobs:
           # Windows executable
           cp artifacts/PDF-Compare.exe/PDF\ Compare.exe release/PDF-Compare-windows.exe
 
-          # macOS app bundle (zip it)
-          cd artifacts/PDF-Compare-macOS
-          zip -r ../../release/PDF-Compare-macOS.zip .
-          cd ../..
+          # macOS DMG
+          cp artifacts/PDF-Compare-macOS/PDF-Compare-macOS.dmg release/PDF-Compare-macOS.dmg
 
       - name: Create tag and release
         env:
@@ -205,7 +218,7 @@ jobs:
           gh release create "$VERSION" \
             release/pdf-compare-linux \
             release/PDF-Compare-windows.exe \
-            release/PDF-Compare-macOS.zip \
+            release/PDF-Compare-macOS.dmg \
             --title "$VERSION" \
             --generate-notes
 
