@@ -83,7 +83,7 @@ jobs:
             artifact_name: pdf-compare
             artifact_path: dist/pdf-compare
             build_script: scripts/build_linux.py
-          - os: macos-13
+          - os: macos-12
             name: macOS-Intel
             artifact_name: PDF-Compare-macOS-Intel
             artifact_path: dist/PDF-Compare-macOS-Intel.dmg
