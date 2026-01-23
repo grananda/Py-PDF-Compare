@@ -3,8 +3,6 @@ name: Build and Release
 on:
   push:
     branches: [main]
-  pull_request:
-    branches: [main]
   workflow_dispatch:
 
 jobs:
@@ -74,6 +72,7 @@ jobs:
 
   build:
     needs: check-versions
+    if: needs.check-versions.outputs.should_release_bin == 'true' || github.event_name == 'workflow_dispatch'
     strategy:
       fail-fast: false
       matrix:
