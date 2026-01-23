@@ -2,6 +2,8 @@
 
 A powerful tool for comparing PDF files. Generates visual side-by-side comparison reports with content-aware highlighting.
 
+<a href="https://www.buymeacoffee.com/grananda" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" style="height: 60px !important;width: 217px !important;" ></a>
+
 ## Features
 
 - **Visual Comparison**: Side-by-side view of two PDFs with intelligent page alignment
