@@ -1,6 +1,8 @@
 import argparse
 import os
 import sys
+import img2pdf
+from io import BytesIO
 from comparator import PDFComparator
 
 def main():
@@ -30,8 +32,23 @@ def main():
         else:
             print(f"Report generated with {len(diff_images)} page(s).")
             print(f"Saving report to '{args.output}'...")
-            
-            diff_images[0].save(args.output, save_all=True, append_images=diff_images[1:])
+
+            # Convert images to JPEG format with compression for smaller file size
+            # Then use img2pdf to create an optimized PDF
+            jpeg_buffers = []
+            for img in diff_images:
+                buffer = BytesIO()
+                # Convert to RGB if needed (RGBA can't be saved as JPEG)
+                if img.mode in ('RGBA', 'LA', 'P'):
+                    img = img.convert('RGB')
+                # Save as JPEG with 75% quality for optimal file size
+                img.save(buffer, format='JPEG', quality=75, optimize=True)
+                jpeg_buffers.append(buffer.getvalue())
+
+            # Use img2pdf to create optimized PDF from compressed JPEGs
+            with open(args.output, 'wb') as f:
+                f.write(img2pdf.convert(jpeg_buffers))
+
             print("Done.")
             
     except Exception as e:

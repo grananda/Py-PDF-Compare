@@ -153,7 +153,9 @@ class PDFComparator:
             return []
 
         try:
-            return convert_from_path(file_path, poppler_path=poppler_path)
+            # Use 75 DPI for optimal balance between quality and file size
+            # (default is 200 DPI which creates very large files)
+            return convert_from_path(file_path, dpi=75, poppler_path=poppler_path)
         except Exception as e:
             print(f"Error converting PDF to images: {e}")
             return []
