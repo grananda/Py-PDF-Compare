@@ -5,13 +5,28 @@ import img2pdf
 from io import BytesIO
 from comparator import PDFComparator
 
+# Load configuration from config.py
+try:
+    from config import PDF_RENDER_DPI, JPEG_QUALITY
+except ImportError:
+    # Fallback defaults if config.py is not found
+    PDF_RENDER_DPI = 75
+    JPEG_QUALITY = 75
+
 def main():
     parser = argparse.ArgumentParser(description="Compare two PDF files and generate a visual diff report.")
     parser.add_argument("file_a", help="Path to the first PDF file (Original)")
     parser.add_argument("file_b", help="Path to the second PDF file (Modified)")
     parser.add_argument("-o", "--output", default="report.pdf", help="Path to save the output report (default: report.pdf)")
-    
+    parser.add_argument("--dpi", type=int, default=PDF_RENDER_DPI, help=f"DPI for PDF rendering (default: {PDF_RENDER_DPI} from config.py)")
+    parser.add_argument("--quality", type=int, default=JPEG_QUALITY, help=f"JPEG quality 1-100 (default: {JPEG_QUALITY} from config.py)")
+
     args = parser.parse_args()
+
+    # Validate quality range
+    if not 1 <= args.quality <= 100:
+        print("Error: Quality must be between 1 and 100")
+        sys.exit(1)
     
     if not os.path.exists(args.file_a):
         print(f"Error: File '{args.file_a}' not found.")
@@ -22,9 +37,10 @@ def main():
         sys.exit(1)
         
     print(f"Comparing '{args.file_a}' and '{args.file_b}'...")
-    
+    print(f"Using DPI: {args.dpi}, JPEG Quality: {args.quality}")
+
     try:
-        comparator = PDFComparator(args.file_a, args.file_b)
+        comparator = PDFComparator(args.file_a, args.file_b, dpi=args.dpi, jpeg_quality=args.quality)
         diff_images = comparator.compare_visuals()
         
         if not diff_images:

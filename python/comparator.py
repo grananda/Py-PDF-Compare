@@ -2,15 +2,27 @@ import pdfplumber
 from pdf2image import convert_from_path
 import difflib
 import os
+import sys
 from PIL import Image, ImageChops, ImageDraw, ImageFont
 import cv2
 import numpy as np
 
+# Load configuration from config.py
+try:
+    from config import PDF_RENDER_DPI, JPEG_QUALITY
+except ImportError:
+    # Fallback defaults if config.py is not found
+    PDF_RENDER_DPI = 75
+    JPEG_QUALITY = 75
+
 
 class PDFComparator:
-    def __init__(self, file_path_a, file_path_b):
+    def __init__(self, file_path_a, file_path_b, dpi=None, jpeg_quality=None):
         self.file_path_a = file_path_a
         self.file_path_b = file_path_b
+        # Use provided values or fall back to config.py values
+        self.dpi = dpi if dpi is not None else PDF_RENDER_DPI
+        self.jpeg_quality = jpeg_quality if jpeg_quality is not None else JPEG_QUALITY
         # Try different font paths for cross-platform compatibility
         font_options = [
             "arial.ttf",  # Windows
@@ -153,9 +165,9 @@ class PDFComparator:
             return []
 
         try:
-            # Use 75 DPI for optimal balance between quality and file size
+            # Use configured DPI for optimal balance between quality and file size
             # (default is 200 DPI which creates very large files)
-            return convert_from_path(file_path, dpi=75, poppler_path=poppler_path)
+            return convert_from_path(file_path, dpi=self.dpi, poppler_path=poppler_path)
         except Exception as e:
             print(f"Error converting PDF to images: {e}")
             return []
