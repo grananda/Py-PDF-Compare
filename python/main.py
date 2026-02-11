@@ -6,6 +6,14 @@ import sys
 from PIL import Image
 import queue
 
+# Load configuration from config.py
+try:
+    from config import PDF_RENDER_DPI, JPEG_QUALITY
+except ImportError:
+    # Fallback defaults if config.py is not found
+    PDF_RENDER_DPI = 75
+    JPEG_QUALITY = 75
+
 # Handle imports for both development and PyInstaller bundle
 if getattr(sys, 'frozen', False):
     # Running as PyInstaller bundle - files are in 'python' subfolder
