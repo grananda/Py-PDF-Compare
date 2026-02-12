@@ -101,27 +101,10 @@ jobs:
       - name: Install dependencies
         run: uv sync --all-groups
 
-      # Linux: Install Poppler
-      - name: Install Poppler (Linux)
-        if: matrix.os == 'ubuntu-latest'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y poppler-utils
-
-      # macOS: Install Poppler and create-dmg via Homebrew
-      - name: Install Poppler and create-dmg (macOS)
+      # macOS: Install create-dmg for DMG packaging
+      - name: Install create-dmg (macOS)
         if: startsWith(matrix.os, 'macos')
-        run: brew install poppler create-dmg
-
-      # Windows: Download Poppler
-      - name: Install Poppler (Windows)
-        if: matrix.os == 'windows-latest'
-        run: |
-          $poppler_version = "24.08.0"
-          $poppler_url = "https://github.com/oschwartz10612/poppler-windows/releases/download/v$poppler_version-0/Release-$poppler_version-0.zip"
-          Invoke-WebRequest -Uri $poppler_url -OutFile poppler.zip
-          Expand-Archive -Path poppler.zip -DestinationPath vendor
-          Rename-Item -Path "vendor/poppler-$poppler_version" -NewName "poppler"
+        run: brew install create-dmg
 
       - name: Build executable
         run: uv run python ${{ matrix.build_script }}
