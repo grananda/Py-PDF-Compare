@@ -8,8 +8,7 @@ Usage:
 This creates a standalone .app bundle in the dist/ folder that can be
 distributed to users without requiring Python installation.
 
-Note: On macOS, Poppler is typically installed via Homebrew:
-    brew install poppler
+Uses PyMuPDF for vector-based PDF processing (no external dependencies needed).
 """
 
 import os
@@ -17,36 +16,6 @@ import subprocess
 import sys
 import shutil
 from pathlib import Path
-
-
-def check_system_poppler():
-    """Check if Poppler is installed system-wide (e.g., via Homebrew)."""
-    try:
-        result = subprocess.run(
-            ["which", "pdftoppm"],
-            capture_output=True,
-            text=True
-        )
-        if result.returncode == 0:
-            return result.stdout.strip()
-    except FileNotFoundError:
-        pass
-    return None
-
-
-def get_homebrew_poppler_path():
-    """Get the Homebrew Poppler installation path."""
-    try:
-        result = subprocess.run(
-            ["brew", "--prefix", "poppler"],
-            capture_output=True,
-            text=True
-        )
-        if result.returncode == 0:
-            return Path(result.stdout.strip())
-    except FileNotFoundError:
-        pass
-    return None
 
 
 def find_tcl_tk_libs():
@@ -95,27 +64,7 @@ def main():
     print("=" * 60)
     print("PDF Compare - macOS Application Builder")
     print("=" * 60)
-
-    # Check for Poppler (bundled or system)
-    poppler_dir = project_root / "vendor" / "poppler"
-    poppler_bin = poppler_dir / "bin"
-    has_bundled_poppler = poppler_bin.exists() and (poppler_bin / "pdftoppm").exists()
-
-    system_poppler = check_system_poppler()
-    homebrew_poppler = get_homebrew_poppler_path()
-
-    if has_bundled_poppler:
-        print(f"\n[OK] Bundled Poppler found at: {poppler_dir}")
-    elif system_poppler:
-        print(f"\n[OK] System Poppler found at: {system_poppler}")
-        if homebrew_poppler:
-            print(f"    Homebrew prefix: {homebrew_poppler}")
-        print("    Note: Users will need Poppler installed on their system")
-    else:
-        print(f"\n[!] Poppler NOT found")
-        print("\nTo run the application, users need to install Poppler:")
-        print("    brew install poppler")
-        print("\nContinuing build without bundled Poppler...")
+    print("\nUsing PyMuPDF for vector-based PDF processing (no external dependencies needed)")
 
     # Clean previous builds
     print("\n[1/4] Cleaning previous builds...")
@@ -173,21 +122,15 @@ def main():
             # Add data directories preserving their names
             pyinstaller_args.append(f"--add-data={data_dir}:{data_dir.name}")
 
-    # Add Poppler if bundled
-    if has_bundled_poppler:
-        # Include the entire poppler directory
-        pyinstaller_args.append(f"--add-data={poppler_dir}:poppler")
-        print(f"  Including bundled Poppler binaries")
-
     # Hidden imports that PyInstaller might miss
     hidden_imports = [
+        "customtkinter",
+        "fitz",
+        "pymupdf",
         "PIL",
         "PIL.Image",
-        "customtkinter",
-        "cv2",
-        "numpy",
-        "pdf2image",
-        "pdfplumber",
+        "pdf_compare.comparator",
+        "pdf_compare.config",
     ]
 
     for imp in hidden_imports:
@@ -209,10 +152,10 @@ def main():
     pyinstaller_args.append("--osx-bundle-identifier=com.pdfcompare.app")
 
     # Entry point
-    entry_point = project_root / "python" / "main.py"
+    entry_point = project_root / "pdf_compare" / "gui.py"
     pyinstaller_args.append(str(entry_point))
 
-    print(f"  Entry point: python/main.py")
+    print(f"  Entry point: pdf_compare/gui.py")
     print(f"  Output name: PDF Compare.app")
 
     # Run PyInstaller
@@ -311,13 +254,8 @@ def main():
         print("  2. Drag to /Applications folder for system-wide access")
         print("  3. Create a DMG for distribution")
         print("  4. Distribute to users")
-
-        if has_bundled_poppler:
-            print("\n[OK] Poppler is bundled - fully standalone!")
-            print("    Users do NOT need to install anything.")
-        else:
-            print("\n[!] Poppler NOT bundled")
-            print("    Users need to install Poppler via: brew install poppler")
+        print("\n[OK] Fully standalone - no external dependencies required!")
+        print("    Users do NOT need to install Python or any other tools.")
 
         # Provide optional DMG creation instructions
         print("\n" + "-" * 60)

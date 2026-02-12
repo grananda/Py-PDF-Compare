@@ -1,17 +1,63 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
 [project]
 name = "pdf-compare"
-version = "2026.2.1"
-description = "PDF comparison tool with GUI."
+version = "2026.2.2"
+description = "Compare two PDF files and generate a visual diff report with highlighted differences"
 readme = "README.md"
 requires-python = ">=3.12"
+license = {text = "MIT"}
+authors = [
+    {name = "grananda"},
+]
+keywords = [
+    "pdf",
+    "compare",
+    "diff",
+    "visual",
+    "comparison",
+    "document",
+    "pdf-diff",
+    "pdf-compare",
+]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Office/Business",
+    "Topic :: Utilities",
+]
 dependencies = [
     "customtkinter>=5.2.2",
-    "numpy>=2.4.1",
-    "opencv-python-headless>=4.11.0.86",
-    "pdf2image>=1.17.0",
-    "pdfplumber>=0.11.9",
+    "pymupdf>=1.26.7",
     "pillow>=12.1.0",
 ]
+
+[project.optional-dependencies]
+dev = [
+    "pyinstaller>=6.18.0",
+    "pytest>=8.0.0",
+    "build>=1.0.0",
+    "twine>=5.0.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/grananda/PDF-Compare-Py"
+Repository = "https://github.com/grananda/PDF-Compare-Py"
+Issues = "https://github.com/grananda/PDF-Compare-Py/issues"
+
+[project.scripts]
+pdf-compare = "pdf_compare.cli:main"
+pdf-compare-gui = "pdf_compare.gui:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["pdf_compare"]
 
 [dependency-groups]
 dev = [

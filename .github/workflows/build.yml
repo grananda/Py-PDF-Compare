@@ -9,12 +9,10 @@ jobs:
   check-versions:
     runs-on: ubuntu-latest
     outputs:
-      # Python/Binary version
-      bin_version: ${{ steps.get_bin_version.outputs.version }}
+      # Version from pyproject.toml
+      version: ${{ steps.get_version.outputs.version }}
       should_release_bin: ${{ steps.check_bin_tag.outputs.should_release }}
-      # NPM version
-      npm_version: ${{ steps.get_npm_version.outputs.version }}
-      should_publish_npm: ${{ steps.check_npm_tag.outputs.should_publish }}
+      should_publish_pypi: ${{ steps.check_pypi_tag.outputs.should_publish }}
 
     steps:
       - name: Checkout repository
@@ -22,70 +20,45 @@ jobs:
         with:
           fetch-depth: 0
 
-      # Binary version from pyproject.toml
-      - name: Get binary version from pyproject.toml
-        id: get_bin_version
+      # Get version from pyproject.toml
+      - name: Get version from pyproject.toml
+        id: get_version
         run: |
           VERSION=$(grep -Po '(?<=^version = ")[^"]*' pyproject.toml)
           echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "Binary version: $VERSION"
+          echo "Version: $VERSION"
 
       - name: Check if binary tag exists
         id: check_bin_tag
         run: |
-          if git rev-parse "v${{ steps.get_bin_version.outputs.version }}" >/dev/null 2>&1; then
+          if git rev-parse "v${{ steps.get_version.outputs.version }}" >/dev/null 2>&1; then
             echo "should_release=false" >> $GITHUB_OUTPUT
-            echo "Tag v${{ steps.get_bin_version.outputs.version }} already exists"
+            echo "Tag v${{ steps.get_version.outputs.version }} already exists"
           else
             if [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" == "refs/heads/main" ]]; then
               echo "should_release=true" >> $GITHUB_OUTPUT
-              echo "Tag v${{ steps.get_bin_version.outputs.version }} does not exist - will create release"
+              echo "Tag v${{ steps.get_version.outputs.version }} does not exist - will create release"
             else
               echo "should_release=false" >> $GITHUB_OUTPUT
               echo "Not on main branch push - skipping binary release"
             fi
           fi
 
-      # NPM version from package.json
-      - name: Get npm version from package.json
-        id: get_npm_version
+      - name: Check if PyPI tag exists
+        id: check_pypi_tag
         run: |
-          VERSION=$(node -p "require('./package.json').version")
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "NPM version: $VERSION"
-
-      - name: Check if npm tag exists
-        id: check_npm_tag
-        run: |
-          if git rev-parse "npm-v${{ steps.get_npm_version.outputs.version }}" >/dev/null 2>&1; then
+          if git rev-parse "pypi-v${{ steps.get_version.outputs.version }}" >/dev/null 2>&1; then
             echo "should_publish=false" >> $GITHUB_OUTPUT
-            echo "Tag npm-v${{ steps.get_npm_version.outputs.version }} already exists"
+            echo "Tag pypi-v${{ steps.get_version.outputs.version }} already exists"
           else
             if [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" == "refs/heads/main" ]]; then
               echo "should_publish=true" >> $GITHUB_OUTPUT
-              echo "Tag npm-v${{ steps.get_npm_version.outputs.version }} does not exist - will publish to npm"
+              echo "Tag pypi-v${{ steps.get_version.outputs.version }} does not exist - will publish to PyPI"
             else
               echo "should_publish=false" >> $GITHUB_OUTPUT
-              echo "Not on main branch push - skipping npm publish"
+              echo "Not on main branch push - skipping PyPI publish"
             fi
           fi
-
-  verify-npm-token:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          registry-url: 'https://registry.npmjs.org'
-
-      - name: Verify npm token
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: |
-          echo "Verifying npm authentication..."
-          npm whoami
-          echo "npm token is valid"
 
   build:
     needs: check-versions
@@ -217,7 +190,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          VERSION="v${{ needs.check-versions.outputs.bin_version }}"
+          VERSION="v${{ needs.check-versions.outputs.version }}"
 
           git tag "$VERSION"
           git push origin "$VERSION"
@@ -229,10 +202,11 @@ jobs:
             --title "$VERSION" \
             --generate-notes
 
-  publish-npm:
+  publish-pypi:
     needs: check-versions
     runs-on: ubuntu-latest
-    if: needs.check-versions.outputs.should_publish_npm == 'true'
+    if: needs.check-versions.outputs.should_publish_pypi == 'true'
+    environment: pypi-release
 
     permissions:
       contents: write
@@ -242,32 +216,29 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
         with:
-          node-version: '20'
-          registry-url: 'https://registry.npmjs.org'
+          version: "latest"
 
-      - name: Publish to npm
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Build package
         run: |
-          VERSION="${{ needs.check-versions.outputs.npm_version }}"
+          uv build
+          echo "Built distributions:"
+          ls -lh dist/
 
-          # Determine npm tag based on version
-          if [[ "$VERSION" == *"rc"* ]] || [[ "$VERSION" == *"alpha"* ]] || [[ "$VERSION" == *"beta"* ]]; then
-            NPM_TAG="next"
-          else
-            NPM_TAG="latest"
-          fi
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          verbose: true
 
-          echo "Publishing version $VERSION with tag $NPM_TAG"
-          npm publish --provenance --access public --tag "$NPM_TAG"
-
-      - name: Create npm version tag
+      - name: Create PyPI version tag
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          VERSION="npm-v${{ needs.check-versions.outputs.npm_version }}"
+          VERSION="pypi-v${{ needs.check-versions.outputs.version }}"
           git tag "$VERSION"
           git push origin "$VERSION"

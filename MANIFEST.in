@@ -1,0 +1,12 @@
+include README.md
+include LICENSE
+include pyproject.toml
+include uv.lock
+
+recursive-include pdf_compare *.py
+recursive-include sample-files *.pdf
+
+exclude .gitignore
+recursive-exclude * __pycache__
+recursive-exclude * *.pyc
+recursive-exclude * *.pyo

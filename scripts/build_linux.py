@@ -8,10 +8,7 @@ Usage:
 This creates a standalone executable file in the dist/ folder that can be
 distributed to users without requiring Python installation.
 
-Note: On Linux, Poppler is typically installed system-wide via package manager:
-    Ubuntu/Debian: sudo apt install poppler-utils
-    Fedora: sudo dnf install poppler-utils
-    Arch: sudo pacman -S poppler
+Uses PyMuPDF for vector-based PDF processing (no external dependencies needed).
 """
 
 import os
@@ -19,21 +16,6 @@ import subprocess
 import sys
 import shutil
 from pathlib import Path
-
-
-def check_system_poppler():
-    """Check if Poppler is installed system-wide."""
-    try:
-        result = subprocess.run(
-            ["which", "pdftoppm"],
-            capture_output=True,
-            text=True
-        )
-        if result.returncode == 0:
-            return result.stdout.strip()
-    except FileNotFoundError:
-        pass
-    return None
 
 
 def find_tcl_tk_libs():
@@ -71,26 +53,7 @@ def main():
     print("=" * 60)
     print("PDF Compare - Linux Executable Builder")
     print("=" * 60)
-
-    # Check for Poppler (bundled or system)
-    poppler_dir = project_root / "vendor" / "poppler"
-    poppler_bin = poppler_dir / "bin"
-    has_bundled_poppler = poppler_bin.exists() and (poppler_bin / "pdftoppm").exists()
-
-    system_poppler = check_system_poppler()
-
-    if has_bundled_poppler:
-        print(f"\n[OK] Bundled Poppler found at: {poppler_dir}")
-    elif system_poppler:
-        print(f"\n[OK] System Poppler found at: {system_poppler}")
-        print("    Note: Users will need Poppler installed on their system")
-    else:
-        print(f"\n[!] Poppler NOT found")
-        print("\nTo run the application, users need to install Poppler:")
-        print("    Ubuntu/Debian: sudo apt install poppler-utils")
-        print("    Fedora: sudo dnf install poppler-utils")
-        print("    Arch: sudo pacman -S poppler")
-        print("\nContinuing build without bundled Poppler...")
+    print("\nUsing PyMuPDF for vector-based PDF processing (no external dependencies needed)")
 
     # Clean previous builds
     print("\n[1/4] Cleaning previous builds...")
@@ -115,9 +78,10 @@ def main():
         "--onefile",           # Single executable file
         "--name=pdf-compare",  # Executable name (lowercase for Linux convention)
         "--clean",             # Clean cache before building
-        # Add data files (from python/ folder) - Linux uses : as separator
-        "--add-data=python/comparator.py:python",
-        "--add-data=python/compare_pdf.py:python",
+        # Add data files (from pdf_compare/ folder) - Linux uses : as separator
+        "--add-data=pdf_compare/comparator.py:pdf_compare",
+        "--add-data=pdf_compare/cli.py:pdf_compare",
+        "--add-data=pdf_compare/config.py:pdf_compare",
         # Collect all customtkinter and tkinter dependencies
         "--collect-all=customtkinter",
         "--collect-all=tkinter",
@@ -140,21 +104,15 @@ def main():
             # Add data directories preserving their names
             pyinstaller_args.append(f"--add-data={data_dir}:{data_dir.name}")
 
-    # Add Poppler if bundled
-    if has_bundled_poppler:
-        # Include the entire poppler directory
-        pyinstaller_args.append(f"--add-data={poppler_dir}:poppler")
-        print(f"  Including bundled Poppler binaries")
-
     # Hidden imports that PyInstaller might miss
     hidden_imports = [
+        "customtkinter",
+        "fitz",
+        "pymupdf",
         "PIL",
         "PIL.Image",
-        "customtkinter",
-        "cv2",
-        "numpy",
-        "pdf2image",
-        "pdfplumber",
+        "pdf_compare.comparator",
+        "pdf_compare.config",
     ]
 
     for imp in hidden_imports:
@@ -173,10 +131,10 @@ def main():
         print("  No icon found (optional: add assets/icon.png)")
 
     # Entry point
-    entry_point = project_root / "python" / "main.py"
+    entry_point = project_root / "pdf_compare" / "gui.py"
     pyinstaller_args.append(str(entry_point))
 
-    print(f"  Entry point: python/main.py")
+    print(f"  Entry point: pdf_compare/gui.py")
     print(f"  Output name: pdf-compare")
 
     # Run PyInstaller
@@ -212,13 +170,8 @@ def main():
         print("  2. Copy to /usr/local/bin for system-wide access")
         print("  3. Create a .desktop file for application menu")
         print("  4. Distribute to users")
-
-        if has_bundled_poppler:
-            print("\n[OK] Poppler is bundled - fully standalone!")
-            print("    Users do NOT need to install anything.")
-        else:
-            print("\n[!] Poppler NOT bundled")
-            print("    Users need to install poppler-utils on their system.")
+        print("\n[OK] Fully standalone - no external dependencies required!")
+        print("    Users do NOT need to install Python or any other tools.")
     else:
         print("\nError: Executable not found after build")
         sys.exit(1)
