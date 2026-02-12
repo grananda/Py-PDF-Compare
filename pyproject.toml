@@ -3,8 +3,8 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "pdf-compare"
-version = "2026.2.2"
+name = "py-pdf-compare"
+version = "2026.2.3"
 description = "Compare two PDF files and generate a visual diff report with highlighted differences"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -48,9 +48,9 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/grananda/PDF-Compare-Py"
-Repository = "https://github.com/grananda/PDF-Compare-Py"
-Issues = "https://github.com/grananda/PDF-Compare-Py/issues"
+Homepage = "https://github.com/grananda/Py-PDF-Compare"
+Repository = "https://github.com/grananda/Py-PDF-Compare"
+Issues = "https://github.com/grananda/Py-PDF-Compare/issues"
 
 [project.scripts]
 pdf-compare = "pdf_compare.cli:main"
