@@ -35,12 +35,12 @@ jobs:
             echo "should_release=false" >> $GITHUB_OUTPUT
             echo "Tag v${{ steps.get_version.outputs.version }} already exists"
           else
-            if [[ "${{ github.event_name }}" == "push" ]]; then
+            if [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" == "refs/heads/main" ]]; then
               echo "should_release=true" >> $GITHUB_OUTPUT
               echo "Tag v${{ steps.get_version.outputs.version }} does not exist - will create release"
             else
               echo "should_release=false" >> $GITHUB_OUTPUT
-              echo "Not a push event - skipping binary release"
+              echo "Not on main branch push - skipping binary release"
             fi
           fi
 
@@ -51,12 +51,12 @@ jobs:
             echo "should_publish=false" >> $GITHUB_OUTPUT
             echo "Tag pypi-v${{ steps.get_version.outputs.version }} already exists"
           else
-            if [[ "${{ github.event_name }}" == "push" ]]; then
+            if [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" == "refs/heads/main" ]]; then
               echo "should_publish=true" >> $GITHUB_OUTPUT
               echo "Tag pypi-v${{ steps.get_version.outputs.version }} does not exist - will publish to PyPI"
             else
               echo "should_publish=false" >> $GITHUB_OUTPUT
-              echo "Not a push event - skipping PyPI publish"
+              echo "Not on main branch push - skipping PyPI publish"
             fi
           fi
 
