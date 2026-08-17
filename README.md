@@ -19,15 +19,25 @@ A powerful tool for comparing PDF files. Generates vector-based side-by-side com
 
 ## Installation
 
-```bash
-pip install pdf-compare
-```
-
-Or using `uv` (recommended):
+The package is published on PyPI as **`py-pdf-compare`**:
 
 ```bash
-uv pip install pdf-compare
+pip install py-pdf-compare
 ```
+
+Or, to install it as a standalone command-line tool with `uv` (recommended — no virtual environment to manage):
+
+```bash
+uv tool install py-pdf-compare
+```
+
+To add it as a dependency of your own project instead:
+
+```bash
+uv add py-pdf-compare
+```
+
+> **Note on names:** the distribution is `py-pdf-compare`, but the import name is `pdf_compare` and the commands are `pdf-compare` and `pdf-compare-gui`.
 
 ### Prerequisites
 
@@ -71,12 +81,15 @@ from pdf_compare import PDFComparator
 # Create comparator instance
 comparator = PDFComparator('original.pdf', 'modified.pdf')
 
-# Generate comparison report
+# Generate comparison report (None when both documents are identical)
 pdf_bytes = comparator.compare_visuals()
 
-# Save to file
-with open('report.pdf', 'wb') as f:
-    f.write(pdf_bytes)
+if pdf_bytes is None:
+    print('No differences found')
+else:
+    # Save to file
+    with open('report.pdf', 'wb') as f:
+        f.write(pdf_bytes)
 ```
 
 ## API Reference
@@ -91,11 +104,14 @@ Main class for comparing PDF files.
 
 **Methods:**
 
-#### `compare_visuals() -> bytes`
+#### `compare_visuals() -> bytes | None`
 
 Generate a vector-based visual comparison report.
 
-**Returns:** PDF report as bytes, or `None` if no differences found.
+**Returns:** PDF report as bytes, or `None` if no differences found. "No differences" means no page was added or removed and no word changed on any matched page.
+
+**Attributes:**
+- `missing_text_layer` (bool): set after calling `compare_visuals()`. `True` when either document has no extractable text (a scan, for example), which makes the comparison unreliable — the report is still returned in that case, since the absence of differences cannot be confirmed.
 
 **Example:**
 ```python
@@ -104,7 +120,10 @@ from pdf_compare import PDFComparator
 comparator = PDFComparator('a.pdf', 'b.pdf')
 result = comparator.compare_visuals()
 
-if result:
+if comparator.missing_text_layer:
+    print("Warning: no text layer, differences cannot be detected reliably")
+
+if result is not None:
     with open('diff.pdf', 'wb') as f:
         f.write(result)
     print("Report generated successfully")
@@ -127,10 +146,17 @@ If you insert a page in the middle of a document:
 - The inserted page is shown with a blank page on the left, labeled "Added"
 - Subsequent pages are correctly aligned and labeled as "Shifted"
 
+### Limitations and edge cases
+
+- **Identical documents**: no report is produced. The CLI says so and exits with code `0`; the API returns `None`.
+- **Scanned documents (no text layer)**: differences are detected from extractable text, so a scan cannot be compared. The tool detects this and warns instead of reporting "no differences"; there is no OCR.
+- **GUI preview**: only the first 20 pages are rendered in the window, to keep memory bounded. The generated report file always contains every page.
+- **Large page shifts**: alignment looks at most 3 pages ahead, so a block of more than 3 consecutive inserted or deleted pages in the middle of a document may not be recovered, and the pages after it can be reported as changed.
+
 ## Project Structure
 
 ```
-pdf-compare-py/
+Py-PDF-Compare/
 ├── pdf_compare/
 │   ├── __init__.py         # Package initialization
 │   ├── comparator.py       # Core comparison logic
@@ -154,19 +180,29 @@ pdf-compare-py/
 ### From Source
 
 ```bash
-git clone https://github.com/grananda/PDF-Compare-Py.git
-cd PDF-Compare-Py
-uv pip install -e .
+git clone https://github.com/grananda/Py-PDF-Compare.git
+cd Py-PDF-Compare
+uv sync
 ```
 
-**Testing:**
+`uv sync` installs the project into `.venv` in editable mode, but it does **not** put `pdf-compare` on your `PATH`. From source, run the commands through `uv run` — that way every change to the code takes effect immediately, with no reinstall step:
+
 ```bash
 # Compare sample files
-pdf-compare sample-files/original.pdf sample-files/modified.pdf -o test-output.pdf
+uv run pdf-compare sample-files/original.pdf sample-files/modified.pdf -o test-output.pdf
 
-# Launch GUI
-pdf-compare-gui
+# Launch the GUI
+uv run pdf-compare-gui
+
+# From outside the repository
+uv run --project /path/to/Py-PDF-Compare pdf-compare a.pdf b.pdf -o diff.pdf
 ```
+
+> **Careful:** `uv tool install py-pdf-compare` installs the **published** version from PyPI, so it will never pick up your local changes. To get a global `pdf-compare` command that tracks your working copy, install it from the repository instead:
+>
+> ```bash
+> uv tool install --editable .
+> ```
 
 **Sample files included for testing:**
 - `sample-files/original.pdf` - Base document
@@ -178,11 +214,21 @@ pdf-compare-gui
 
 ```bash
 # From source
-uv run python pdf_compare/gui.py
+uv run pdf-compare-gui
 
-# Or after installation
+# Or after installing the package
 pdf-compare-gui
 ```
+
+The GUI needs the Tk system libraries, which are not part of the Python package. If it fails with `ImportError: libtk8.6.so`, install them:
+
+```bash
+sudo pacman -S tk          # Arch / CachyOS
+sudo apt install python3-tk # Debian / Ubuntu
+brew install python-tk      # macOS
+```
+
+They are already included in the standard Python installers for Windows and macOS.
 
 ### Building Standalone Executables
 
@@ -209,7 +255,7 @@ uv run python scripts/build_macos.py
 This package can be integrated into other projects as a Git submodule:
 
 ```bash
-git submodule add https://github.com/grananda/PDF-Compare-Py.git
+git submodule add https://github.com/grananda/Py-PDF-Compare.git
 ```
 
 Then import in your Python code:
@@ -227,4 +273,4 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## Support
 
-For issues, questions, or contributions, visit: https://github.com/grananda/PDF-Compare-Py
+For issues, questions, or contributions, visit: https://github.com/grananda/Py-PDF-Compare

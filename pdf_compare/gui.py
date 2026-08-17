@@ -24,6 +24,13 @@ from pdf_compare.comparator import PDFComparator
 ctk.set_appearance_mode("System")
 ctk.set_default_color_theme("blue")
 
+# Preview limits. The report has one page per compared pair and is twice as wide
+# as the source, so rendering every page of a long document at once is what
+# exhausts memory; the report file itself always contains all the pages.
+PREVIEW_DPI = 100
+PREVIEW_WIDTH = 1280
+MAX_PREVIEW_PAGES = 20
+
 class App(ctk.CTk):
     def __init__(self):
         super().__init__()
@@ -144,6 +151,13 @@ class App(ctk.CTk):
         )
         info_label.grid(row=6, column=0, columnspan=2, pady=10)
 
+        # Do not leave the temporary report behind when the window is closed
+        self.protocol("WM_DELETE_WINDOW", self.on_close)
+
+    def on_close(self):
+        self.cleanup_temp_report()
+        self.destroy()
+
     def select_file_a(self):
         filename = filedialog.askopenfilename(filetypes=[("PDF Files", "*.pdf")])
         if filename:
@@ -177,8 +191,9 @@ class App(ctk.CTk):
         self.progress_bar.set(0)
         self.progress_bar.start()
 
-        # Run in thread to not freeze GUI
-        thread = threading.Thread(target=self.run_comparison, daemon=False)
+        # Run in thread to not freeze GUI. Daemon, so closing the window does not
+        # leave the process alive until a long comparison finishes.
+        thread = threading.Thread(target=self.run_comparison, daemon=True)
         thread.start()
 
         # Start checking for results
@@ -191,28 +206,34 @@ class App(ctk.CTk):
 
             print("Calling compare_visuals()...")
             pdf_bytes = comparator.compare_visuals()
+
+            if pdf_bytes is None:
+                print("Comparison complete. No differences found.")
+                self.result_queue.put(('empty', comparator.missing_text_layer))
+                return
+
             print(f"Comparison complete. Generated {len(pdf_bytes)} bytes.")
+            file_size_mb = len(pdf_bytes) / (1024 * 1024)
 
-            if pdf_bytes:
-                file_size_mb = len(pdf_bytes) / (1024 * 1024)
+            # Save to a private temporary file. A fixed name under the shared
+            # temp directory is readable by other users and collides between
+            # instances; mkstemp creates it atomically with 0600 permissions.
+            self.cleanup_temp_report()
+            fd, self.output_path = tempfile.mkstemp(prefix="pdf_comparison_", suffix=".pdf")
+            with os.fdopen(fd, 'wb') as f:
+                f.write(pdf_bytes)
 
-                # Save to temporary file
-                temp_dir = tempfile.gettempdir()
-                self.output_path = os.path.join(temp_dir, "pdf_comparison_report.pdf")
+            print(f"Temporary report saved to: {self.output_path} ({file_size_mb:.2f} MB)")
 
-                with open(self.output_path, 'wb') as f:
-                    f.write(pdf_bytes)
+            # Convert PDF to images for preview (using PyMuPDF)
+            print("Generating preview images...")
+            preview_images, total_pages = self.pdf_to_images(pdf_bytes)
+            print(f"Generated {len(preview_images)} preview images of {total_pages} pages")
 
-                print(f"Temporary report saved to: {self.output_path} ({file_size_mb:.2f} MB)")
-
-                # Convert PDF to images for preview (using PyMuPDF)
-                print("Generating preview images...")
-                preview_images = self.pdf_to_images(pdf_bytes)
-                print(f"Generated {len(preview_images)} preview images")
-
-                self.result_queue.put(('success', (self.output_path, file_size_mb, preview_images)))
-            else:
-                self.result_queue.put(('empty', None))
+            self.result_queue.put((
+                'success',
+                (self.output_path, file_size_mb, preview_images, total_pages, comparator.missing_text_layer)
+            ))
 
         except Exception as e:
             print(f"Error during comparison: {e}")
@@ -220,23 +241,44 @@ class App(ctk.CTk):
             traceback.print_exc()
             self.result_queue.put(('error', str(e)))
 
-    def pdf_to_images(self, pdf_bytes, dpi=100):
-        """Convert PDF bytes to PIL Images for preview (lower DPI for display)"""
+    def pdf_to_images(self, pdf_bytes, dpi=PREVIEW_DPI):
+        """Render the first pages of the report as PIL Images for preview.
+
+        Returns (images, total_pages). Only MAX_PREVIEW_PAGES are rendered, and
+        each one is downscaled to the display width immediately, so memory stays
+        bounded regardless of how long the report is.
+        """
         images = []
-        doc = fitz.open(stream=pdf_bytes, filetype="pdf")
 
-        for page_num in range(len(doc)):
-            page = doc[page_num]
-            # Render at lower DPI for preview (saves memory)
-            mat = fitz.Matrix(dpi / 72, dpi / 72)
-            pix = page.get_pixmap(matrix=mat)
+        with fitz.open(stream=pdf_bytes, filetype="pdf") as doc:
+            total_pages = len(doc)
 
-            # Convert to PIL Image
-            img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
-            images.append(img)
+            for page_num in range(min(total_pages, MAX_PREVIEW_PAGES)):
+                page = doc[page_num]
+                # Render at lower DPI for preview (saves memory)
+                mat = fitz.Matrix(dpi / 72, dpi / 72)
+                pix = page.get_pixmap(matrix=mat)
 
-        doc.close()
-        return images
+                # Convert to PIL Image, already at display size
+                img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+                if img.width > PREVIEW_WIDTH:
+                    ratio = PREVIEW_WIDTH / float(img.width)
+                    img = img.resize(
+                        (PREVIEW_WIDTH, int(img.height * ratio)),
+                        Image.Resampling.LANCZOS
+                    )
+                images.append(img)
+
+        return images, total_pages
+
+    def cleanup_temp_report(self):
+        """Remove the temporary report of a previous comparison, if any."""
+        if self.output_path and os.path.exists(self.output_path):
+            try:
+                os.remove(self.output_path)
+            except OSError as e:
+                print(f"Could not remove temporary report: {e}")
+        self.output_path = ""
 
     def check_queue(self):
         """Check the queue for results from the worker thread"""
@@ -250,10 +292,9 @@ class App(ctk.CTk):
             self.progress_bar.pack_forget()
 
             if result_type == 'success':
-                output_path, file_size_mb, preview_images = result[1]
-                self.update_ui_success(output_path, file_size_mb, preview_images)
+                self.update_ui_success(*result[1])
             elif result_type == 'empty':
-                self.update_ui_empty()
+                self.update_ui_empty(result[1])
             elif result_type == 'error':
                 self.update_ui_error(result[1])
 
@@ -261,58 +302,73 @@ class App(ctk.CTk):
             # No result yet, check again in 100ms
             self.after(100, self.check_queue)
 
-    def update_ui_success(self, output_path, file_size_mb, preview_images):
+    def update_ui_success(self, output_path, file_size_mb, preview_images, total_pages, missing_text_layer=False):
         print(f"Displaying {len(preview_images)} preview images...")
 
         # Show status
-        self.status_label.configure(
-            text=f"✓ Comparison complete! Report size: {file_size_mb:.2f} MB • Vector-based PDF (text is searchable)",
-            text_color="green"
-        )
+        if missing_text_layer:
+            self.status_label.configure(
+                text="⚠ One of the documents has no text layer (a scan?). Differences are "
+                     "detected from text, so this result is not reliable.",
+                text_color="orange"
+            )
+        else:
+            self.status_label.configure(
+                text=f"✓ Comparison complete! Report size: {file_size_mb:.2f} MB • Vector-based PDF (text is searchable)",
+                text_color="green"
+            )
 
         # Enable action buttons
         self.btn_download.configure(state="normal")
         self.btn_open.configure(state="normal")
         self.btn_save_as.configure(state="normal")
 
-        # Display preview images
-        if preview_images:
-            for i, img in enumerate(preview_images):
-                print(f"  Displaying preview {i+1}/{len(preview_images)} (size: {img.size})")
+        # Display preview images (already at display size)
+        for i, img in enumerate(preview_images):
+            print(f"  Displaying preview {i+1}/{len(preview_images)} (size: {img.size})")
 
-                # Resize for display if needed
-                display_width = 1280
-                if img.width > display_width:
-                    ratio = display_width / float(img.width)
-                    display_height = int((float(img.height) * float(ratio)))
-                    img_resized = img.resize((display_width, display_height), Image.Resampling.LANCZOS)
-                else:
-                    img_resized = img
+            ctk_img = ctk.CTkImage(
+                light_image=img,
+                dark_image=img,
+                size=(img.width, img.height)
+            )
 
-                ctk_img = ctk.CTkImage(
-                    light_image=img_resized,
-                    dark_image=img_resized,
-                    size=(img_resized.width, img_resized.height)
-                )
+            lbl = ctk.CTkLabel(self.scrollable_frame, text="", image=ctk_img)
+            lbl.image = ctk_img  # Keep reference
+            lbl.pack(pady=10)
 
-                lbl = ctk.CTkLabel(self.scrollable_frame, text="", image=ctk_img)
-                lbl.image = ctk_img  # Keep reference
-                lbl.pack(pady=10)
+        # The report file always holds every page, even if the preview is capped
+        if total_pages > len(preview_images):
+            ctk.CTkLabel(
+                self.scrollable_frame,
+                text=f"Preview limited to the first {len(preview_images)} of {total_pages} pages. "
+                     f"The report file contains them all.",
+                font=ctk.CTkFont(size=12),
+                text_color="gray"
+            ).pack(pady=20)
 
         self.btn_compare.configure(state="normal", text="Compare PDFs")
         print("UI update complete")
 
-    def update_ui_empty(self):
-        self.status_label.configure(
-            text="No visual differences found between the PDFs.",
-            text_color="blue"
-        )
+    def update_ui_empty(self, missing_text_layer=False):
+        if missing_text_layer:
+            self.status_label.configure(
+                text="⚠ No text layer found in one of the documents, so no difference could be detected.",
+                text_color="orange"
+            )
+            message, color = "⚠ Cannot Compare These Documents", "orange"
+        else:
+            self.status_label.configure(
+                text="No visual differences found between the PDFs.",
+                text_color="blue"
+            )
+            message, color = "✓ No Differences Found", "green"
 
         no_diff_label = ctk.CTkLabel(
             self.scrollable_frame,
-            text="✓ No Differences Found",
+            text=message,
             font=ctk.CTkFont(size=16, weight="bold"),
-            text_color="green"
+            text_color=color
         )
         no_diff_label.pack(pady=50)
 
@@ -414,6 +470,11 @@ class App(ctk.CTk):
             except Exception as e:
                 messagebox.showerror("Error", f"Failed to save report: {e}")
 
-if __name__ == "__main__":
+def main():
+    """Entry point for the pdf-compare-gui command."""
     app = App()
     app.mainloop()
+
+
+if __name__ == "__main__":
+    main()

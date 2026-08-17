@@ -22,3 +22,5 @@ dist/
 
 # Vendor binaries (downloaded by scripts/download_poppler.py)
 vendor/
+
+sample-files/allianz
