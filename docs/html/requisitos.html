@@ -1,0 +1,328 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Requisitos — Py-PDF-Compare</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #f5f7fa; --panel: #ffffff; --panel-soft: #fbfcfd;
+      --text: #1a2230; --text-soft: #404a5c; --muted: #5b6675;
+      --line: #e1e6ed; --line-strong: #c8d1dc;
+      --accent: #005f73; --accent-soft: #d6eef3;
+      --code-bg: #eef2f6;
+      --shadow: 0 1px 2px rgba(15,23,42,.04), 0 1px 3px rgba(15,23,42,.06);
+      --rf: #0a7d8c; --nfr: #6b5bd6; --us: #0a9396; --must: #c1121f;
+      --block: #b00020; --warn: #b58a25; --essential: #e8590c;
+      --prio-high: #c1121f; --prio-mid: #d98a00; --prio-low: #4a8a4a;
+      --eff-xs: #2f8f6b; --eff-s: #4a8a4a; --eff-m: #d98a00; --eff-l: #c1121f; --eff-xl: #7a0a15;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) { 
+        --bg: #0f1623; --panel: #161f2f; --panel-soft: #1b2536;
+        --text: #e6ebf4; --text-soft: #c2cad8; --muted: #94a0b3;
+        --line: #28324a; --line-strong: #364260;
+        --accent: #4dd0e1; --accent-soft: #143038; --code-bg: #1f2940;
+        --shadow: 0 1px 2px rgba(0,0,0,.35), 0 1px 3px rgba(0,0,0,.25);
+        --rf: #35c4d6; --nfr: #a99bff; --us: #4dd0e1; --must: #ff6b74;
+        --block: #ff7a8a; --warn: #f6d784; --essential: #ff8f4d;
+        --prio-high: #ff6b74; --prio-mid: #ffb340; --prio-low: #7fd07f;
+        --eff-xs: #5fd0a8; --eff-s: #7fd07f; --eff-m: #ffb340; --eff-l: #ff6b74; --eff-xl: #ff9aa2;
+ }
+    }
+    :root[data-theme="dark"] { 
+        --bg: #0f1623; --panel: #161f2f; --panel-soft: #1b2536;
+        --text: #e6ebf4; --text-soft: #c2cad8; --muted: #94a0b3;
+        --line: #28324a; --line-strong: #364260;
+        --accent: #4dd0e1; --accent-soft: #143038; --code-bg: #1f2940;
+        --shadow: 0 1px 2px rgba(0,0,0,.35), 0 1px 3px rgba(0,0,0,.25);
+        --rf: #35c4d6; --nfr: #a99bff; --us: #4dd0e1; --must: #ff6b74;
+        --block: #ff7a8a; --warn: #f6d784; --essential: #ff8f4d;
+        --prio-high: #ff6b74; --prio-mid: #ffb340; --prio-low: #7fd07f;
+        --eff-xs: #5fd0a8; --eff-s: #7fd07f; --eff-m: #ffb340; --eff-l: #ff6b74; --eff-xl: #ff9aa2;
+ }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0; background: var(--bg); color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Inter", Roboto, "Helvetica Neue", Arial, sans-serif;
+      font-size: 16px; line-height: 1.65; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
+    }
+    .layout {
+      display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 40px;
+      max-width: 1280px; margin: 0 auto; padding: 40px 28px 80px;
+    }
+    @media (max-width: 960px) {
+      .layout { grid-template-columns: 1fr; padding: 24px 18px 56px; gap: 24px; }
+      .toc { position: static !important; max-height: none !important; }
+    }
+    main { min-width: 0; }
+    .doc-header { margin-bottom: 24px; padding-bottom: 18px; border-bottom: 1px solid var(--line); }
+    h1 { font-size: 2rem; line-height: 1.2; margin: 0 0 10px; letter-spacing: -0.01em; }
+    h2 { font-size: 1.35rem; line-height: 1.3; margin: 0 0 14px; display: flex; align-items: baseline; gap: 8px; }
+    h3 { font-size: 1.08rem; margin: 22px 0 10px; }
+    h4 { font-size: .98rem; margin: 18px 0 8px; color: var(--text-soft); text-transform: uppercase; letter-spacing: .04em; }
+    h2 .anchor { color: var(--line-strong); text-decoration: none; font-weight: 400; opacity: 0; transition: opacity .15s ease, color .15s ease; }
+    h2:hover .anchor { opacity: 1; }
+    h2 .anchor:hover { color: var(--accent); }
+    p { margin: 0 0 14px; color: var(--text-soft); max-width: 74ch; }
+    li { color: var(--text-soft); }
+    ul, ol { padding-left: 24px; margin: 0 0 16px; }
+    ul li, ol li { margin-bottom: 6px; }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    strong { color: var(--text); }
+    blockquote {
+      margin: 0 0 16px; padding: 12px 16px; border-left: 3px solid var(--accent);
+      background: var(--panel-soft); border-radius: 0 8px 8px 0; color: var(--muted); font-size: .95rem;
+    }
+    code { background: var(--code-bg); border: 1px solid var(--line); border-radius: 4px; padding: 1px 6px;
+      font-family: "SF Mono","JetBrains Mono","Fira Code",Consolas,Menlo,monospace; font-size: .88em; }
+    pre { background: var(--panel-soft); border: 1px solid var(--line); border-radius: 8px; padding: 16px 18px;
+      overflow-x: auto; font-family: "SF Mono","JetBrains Mono","Fira Code",Consolas,Menlo,monospace; font-size: .88em; line-height: 1.55; }
+    pre code { background: transparent; border: 0; padding: 0; }
+    .badge { display: inline-block; background: var(--accent-soft); color: var(--accent);
+      font-size: .72rem; font-weight: 600; text-transform: uppercase; letter-spacing: .06em;
+      padding: 2px 8px; border-radius: 999px; vertical-align: middle; }
+    .badge-soft { background: transparent; border: 1px solid var(--line-strong); color: var(--muted); }
+    .doc-meta { margin: 0; color: var(--muted); font-size: .92rem; }
+    .doc-meta .dot { margin: 0 6px; color: var(--line-strong); }
+    .doc-meta .sot { font-style: italic; }
+    .doc-meta .stamp strong { color: var(--accent); }
+    hr { border: 0; border-top: 1px solid var(--line); margin: 28px 0; }
+    li.task { list-style: none; margin-left: -20px; }
+    li.task input { accent-color: var(--accent); margin-right: 6px; vertical-align: -.1em; }
+    .theme-toggle { position: fixed; top: 14px; right: 16px; z-index: 10;
+      width: 36px; height: 36px; border-radius: 999px; border: 1px solid var(--line-strong);
+      background: var(--panel); color: var(--text-soft); font-size: 1rem; cursor: pointer;
+      box-shadow: var(--shadow); line-height: 1; }
+    .theme-toggle:hover { color: var(--accent); border-color: var(--accent); }
+    .diagram.offline::after { content: "Diagrama Mermaid sin renderizar (falta mermaid.min.js junto al HTML y la CDN no responde; el codigo fuente se muestra arriba)";
+      display: block; margin-top: 10px; font-size: .8rem; color: var(--warn); }
+    /* KPI dashboard */
+    .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 14px; margin-top: 20px; }
+    .kpi { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--accent);
+      border-radius: 10px; padding: 14px 16px; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 2px; }
+    .kpi-value { font-size: 1.9rem; font-weight: 700; line-height: 1; letter-spacing: -.02em; color: var(--text); font-variant-numeric: tabular-nums; }
+    .kpi-label { font-size: .78rem; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+    .kpi-rf { border-left-color: var(--rf); } .kpi-rf .kpi-value { color: var(--rf); }
+    .kpi-nfr { border-left-color: var(--nfr); } .kpi-nfr .kpi-value { color: var(--nfr); }
+    .kpi-us { border-left-color: var(--us); } .kpi-us .kpi-value { color: var(--us); }
+    .kpi-must { border-left-color: var(--must); } .kpi-must .kpi-value { color: var(--must); }
+    .kpi-block { border-left-color: var(--block); } .kpi-block .kpi-value { color: var(--block); }
+    .kpi-essential { border-left-color: var(--essential); } .kpi-essential .kpi-value { color: var(--essential); }
+    .kpi-warn { border-left-color: var(--warn); } .kpi-warn .kpi-value { color: var(--warn); }
+    .kpi-muted { border-left-color: var(--line-strong); } .kpi-muted .kpi-value { color: var(--muted); }
+    .kpi-eff { border-left-color: var(--eff-m); } .kpi-eff .kpi-value { color: var(--eff-m); }
+    /* Chips */
+    .chip { display: inline-block; font-size: .74rem; font-weight: 600; padding: 1px 8px; border-radius: 999px;
+      vertical-align: baseline; letter-spacing: .02em; white-space: nowrap;
+      border: 1px solid color-mix(in srgb, currentColor 35%, transparent); }
+    .chip-rf { color: var(--rf); background: color-mix(in srgb, var(--rf) 12%, transparent); font-family: "SF Mono",Menlo,monospace; }
+    .chip-nfr { color: var(--nfr); background: color-mix(in srgb, var(--nfr) 12%, transparent); font-family: "SF Mono",Menlo,monospace; }
+    .chip-us { color: var(--us); background: color-mix(in srgb, var(--us) 12%, transparent); font-family: "SF Mono",Menlo,monospace; }
+    .chip-block { color: #fff; background: var(--block); border-color: var(--block); text-transform: uppercase; letter-spacing: .05em; }
+    .chip-essential { color: #fff; background: var(--essential); border-color: var(--essential); text-transform: uppercase; letter-spacing: .05em; }
+    .swatch { display: inline-block; width: .9em; height: .9em; border-radius: 3px; margin-right: .35em;
+      vertical-align: -.12em; border: 1px solid color-mix(in srgb, var(--text) 30%, transparent);
+      box-shadow: 0 0 0 1px rgba(255,255,255,.35) inset; }
+    .chip-must { color: var(--must); background: color-mix(in srgb, var(--must) 14%, transparent); }
+    .chip-should { color: var(--prio-mid); background: color-mix(in srgb, var(--prio-mid) 14%, transparent); }
+    .chip-could { color: var(--prio-low); background: color-mix(in srgb, var(--prio-low) 14%, transparent); }
+    .chip-wont { color: var(--muted); background: color-mix(in srgb, var(--muted) 14%, transparent); }
+    .chip-prio-high { color: var(--prio-high); background: color-mix(in srgb, var(--prio-high) 14%, transparent); }
+    .chip-prio-mid { color: var(--prio-mid); background: color-mix(in srgb, var(--prio-mid) 14%, transparent); }
+    .chip-prio-low { color: var(--prio-low); background: color-mix(in srgb, var(--prio-low) 14%, transparent); }
+    .chip-eff-xs { color: var(--eff-xs); background: color-mix(in srgb, var(--eff-xs) 14%, transparent); }
+    .chip-eff-s { color: var(--eff-s); background: color-mix(in srgb, var(--eff-s) 14%, transparent); }
+    .chip-eff-m { color: var(--eff-m); background: color-mix(in srgb, var(--eff-m) 14%, transparent); }
+    .chip-eff-l { color: var(--eff-l); background: color-mix(in srgb, var(--eff-l) 14%, transparent); }
+    .chip-eff-xl { color: var(--eff-xl); background: color-mix(in srgb, var(--eff-xl) 14%, transparent); }
+    /* Sections */
+    .doc-section { background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+      padding: 24px 26px; margin: 22px 0; box-shadow: var(--shadow); }
+    .doc-section h2 { margin-top: 0; }
+    .doc-section > h2::before { content: ""; display: inline-block; width: 6px; height: 22px; border-radius: 3px;
+      background: var(--accent); transform: translateY(3px); margin-right: 2px; }
+    .section-scope > h2::before { background: var(--must); }
+    .section-scope ul { list-style: none; padding-left: 0; }
+    .section-scope ul li { padding: 6px 12px; margin-bottom: 6px; border-radius: 8px; background: var(--panel-soft); border: 1px solid var(--line); }
+    .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; margin: 14px 0; }
+    table { width: 100%; border-collapse: collapse; background: var(--panel); font-size: .94rem; }
+    th, td { padding: 10px 14px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; color: var(--text-soft); }
+    tbody tr:last-child td { border-bottom: 0; }
+    tbody tr:nth-child(even) td { background: var(--panel-soft); }
+    th { background: var(--panel-soft); color: var(--text); font-weight: 600; font-size: .82rem;
+      text-transform: uppercase; letter-spacing: .05em; border-bottom: 1px solid var(--line-strong); }
+    .diagram { margin: 18px 0 4px; padding: 18px; background: var(--panel-soft);
+      border: 1px dashed var(--line-strong); border-radius: 10px; overflow-x: auto; }
+    .diagram .mermaid { text-align: center; background: transparent; border: 0; padding: 0; margin: 0; }
+    .toc { position: sticky; top: 24px; align-self: start; max-height: calc(100vh - 48px); overflow-y: auto;
+      padding: 18px 18px 14px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+      box-shadow: var(--shadow); font-size: .9rem; }
+    .toc-title { margin: 0 0 10px; font-size: .74rem; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+    .toc ol { list-style: none; counter-reset: toc; padding: 0; margin: 0; }
+    .toc li { counter-increment: toc; margin: 0; }
+    .toc li a { display: block; padding: 6px 10px 6px 12px; color: var(--text-soft); border-radius: 6px; }
+    .toc li a::before { content: counter(toc) "."; color: var(--muted); margin-right: 8px; font-variant-numeric: tabular-nums; }
+    .toc li a:hover, .toc li a.active { background: var(--accent-soft); color: var(--accent); text-decoration: none; }
+    @media print {
+      body { background: #fff; } .layout { display: block; padding: 0; } .toc { display: none; }
+      .doc-section, .kpi { box-shadow: none; break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <button class="theme-toggle" id="themeToggle" aria-label="Cambiar tema">&#9681;</button>
+  <div class="layout">
+    <nav class="toc" aria-label="Indice"><p class="toc-title">En esta pagina</p><ol><li><a href="#1-descripci-n-del-sistema-y-objetivos">1. Descripción del sistema y objetivos</a></li><li><a href="#2-usuarios-y-roles">2. Usuarios y roles</a></li><li><a href="#3-requisitos-funcionales">3. Requisitos funcionales</a></li><li><a href="#4-requisitos-no-funcionales">4. Requisitos no funcionales</a></li><li><a href="#5-restricciones-t-cnicas-no-negociables">5. Restricciones técnicas no negociables</a></li><li><a href="#6-alcance">6. Alcance</a></li><li><a href="#7-variables-de-entorno-y-configuraci-n-requerida">7. Variables de entorno y configuración requerida</a></li><li><a href="#8-preguntas-abiertas-y-pendientes">8. Preguntas abiertas y pendientes</a></li><li><a href="#9-decisiones-tomadas-en-el-paso-1-1">9. Decisiones tomadas en el paso 1.1</a></li></ol></nav>
+    <main>
+<header class="doc-header"><h1 id="requisitos-py-pdf-compare">Requisitos — Py-PDF-Compare</h1><p class="doc-meta"><span class="badge">Requisitos</span> <span class="badge badge-soft">Fase 1 · 1.1</span> <span class="dot">&middot;</span> <span class="stamp"><strong>Versión 3</strong> · <strong>Generado:</strong> 2026-08-17 09:28 CEST</span> <span class="dot">&middot;</span> Vista generada el 2026-08-17 <span class="dot">&middot;</span> <span class="sot">El .md es la fuente de verdad</span></p><div class="kpi-grid"><div class="kpi kpi-rf"><span class="kpi-value">30</span><span class="kpi-label">Requisitos funcionales</span></div><div class="kpi kpi-nfr"><span class="kpi-value">12</span><span class="kpi-label">No funcionales</span></div><div class="kpi kpi-muted"><span class="kpi-value">7</span><span class="kpi-label">Fuera de alcance</span></div><div class="kpi kpi-eff"><span class="kpi-value">33 d</span><span class="kpi-label">Esfuerzo estimado (11 items)</span></div><div class="kpi kpi-block"><span class="kpi-value">1</span><span class="kpi-label">Bloqueantes</span></div><div class="kpi kpi-warn"><span class="kpi-value">7</span><span class="kpi-label">Preguntas abiertas</span></div></div></header>
+<blockquote>Documento de Fase 1 (AIDD · paso 1.1). Generado por <code>aidd requirements</code>.<br>Entrada: no existe <code>docs/cliente-requisitos.md</code> — requisitos derivados por ingeniería inversa del código, el <code>README.md</code> y el workflow de CI. Salida hacia: <code>docs/mapa-historias-usuario.md</code>.<br>Alcance: <strong>estado actual (as-is)</strong>. Este catálogo formaliza lo que el producto ya hace; toda evolución posterior entra como <em>change</em> de AISDD.<br>Pendiente de aprobación humana.</blockquote>
+<section class="doc-section" id="1-descripci-n-del-sistema-y-objetivos">
+<h2><a class="anchor" href="#1-descripci-n-del-sistema-y-objetivos" aria-label="Enlace">#</a>1. Descripción del sistema y objetivos</h2>
+<p><strong>Py-PDF-Compare</strong> es una herramienta de escritorio y línea de comandos que compara dos ficheros PDF y genera un informe PDF de diferencias, con las dos versiones enfrentadas lado a lado y las diferencias de texto resaltadas por color.</p>
+<p>Problema que resuelve: revisar qué ha cambiado entre dos versiones de un documento PDF sin depender de herramientas comerciales, sin subir el documento a ningún servicio externo y sin perder la calidad del original.</p>
+<p>Objetivos medibles (derivados del comportamiento actual):</p>
+<ul><li><strong>O-1</strong> — El informe conserva el contenido vectorial de los originales: el texto del informe sigue siendo seleccionable y buscable.</li><li><strong>O-2</strong> — El informe evita la rasterización: el tamaño de fichero resultante es entre 20 y 70 veces menor que el del enfoque basado en imágenes que sustituyó (<code>pdf_compare/config.py</code>).</li><li><strong>O-3</strong> — La instalación no requiere dependencias nativas externas al ecosistema Python (sin Poppler ni binarios de sistema).</li><li><strong>O-4</strong> — El producto es consumible por tres vías con el mismo núcleo: aplicación de escritorio, CLI y librería Python.</li></ul>
+</section>
+<section class="doc-section" id="2-usuarios-y-roles">
+<h2><a class="anchor" href="#2-usuarios-y-roles" aria-label="Enlace">#</a>2. Usuarios y roles</h2>
+<p>El sistema <strong>no tiene autenticación ni control de acceso</strong>: es una herramienta local monousuario. Los &quot;roles&quot; son perfiles de uso, no permisos.</p>
+<div class="table-wrap"><table><thead><tr><th>Rol</th><th>Descripción</th><th>Interfaz</th><th>Permisos / responsabilidades</th></tr></thead><tbody><tr><td><strong>Usuario de escritorio</strong></td><td>Persona que compara dos documentos de forma puntual y visual</td><td>GUI (<code>pdf-compare-gui</code>)</td><td>Selecciona ficheros, lanza la comparación, previsualiza, descarga o abre el informe</td></tr><tr><td><strong>Usuario de CLI / automatización</strong></td><td>Persona o script que integra la comparación en un flujo por lotes o en CI</td><td>CLI (<code>pdf-compare</code>)</td><td>Pasa rutas de entrada y salida, interpreta el código de salida del proceso</td></tr><tr><td><strong>Desarrollador integrador</strong></td><td>Programador que embebe la comparación en otra aplicación</td><td>API Python (<code>PDFComparator</code>) o submódulo git</td><td>Instancia el comparador, consume los bytes del informe y decide su persistencia</td></tr><tr><td><strong>Mantenedor</strong></td><td>Responsable del repositorio y de las publicaciones</td><td>GitHub Actions, PyPI</td><td>Versiona en <code>pyproject.toml</code>, dispara release de binarios y publicación en PyPI</td></tr></tbody></table></div>
+</section>
+<section class="doc-section" id="3-requisitos-funcionales">
+<h2><a class="anchor" href="#3-requisitos-funcionales" aria-label="Enlace">#</a>3. Requisitos funcionales</h2>
+<p>Prioridad orientativa: <strong>A</strong> (nuclear, define el producto), <strong>M</strong> (relevante), <strong>B</strong> (accesorio).</p>
+<h3 id="3-1-n-cleo-de-comparaci-n">3.1 Núcleo de comparación</h3>
+<div class="table-wrap"><table><thead><tr><th>ID</th><th>Requisito</th><th>Actor</th><th>Prio</th></tr></thead><tbody><tr><td><span class="chip chip-rf">RF-01</span></td><td>El sistema debe comparar dos ficheros PDF (original y modificado) y producir un informe PDF con ambos enfrentados lado a lado, página a página</td><td>Todos</td><td>A</td></tr><tr><td><span class="chip chip-rf">RF-02</span></td><td>El sistema debe alinear las páginas por <strong>similitud de contenido textual</strong>, no por número de página, de modo que un desplazamiento de páginas no se interprete como cambio masivo</td><td>Todos</td><td>A</td></tr><tr><td><span class="chip chip-rf">RF-03</span></td><td>El alineado debe clasificar cada pareja de páginas como equivalente, sustituida, insertada o eliminada, explorando páginas siguientes para encontrar la correspondencia real</td><td>Todos</td><td>A</td></tr><tr><td><span class="chip chip-rf">RF-04</span></td><td>Una página presente solo en el original debe aparecer en el panel izquierdo etiquetada como ausente, con el panel derecho en blanco</td><td>Todos</td><td>A</td></tr><tr><td><span class="chip chip-rf">RF-05</span></td><td>Una página presente solo en el modificado debe aparecer en el panel derecho etiquetada como añadida, con el panel izquierdo en blanco</td><td>Todos</td><td>A</td></tr><tr><td><span class="chip chip-rf">RF-06</span></td><td>El sistema debe resaltar las diferencias <strong>a nivel de palabra</strong>, localizándolas por su caja delimitadora en la página: rojo para lo eliminado sobre el original, verde para lo añadido sobre el modificado</td><td>Todos</td><td>A</td></tr><tr><td><span class="chip chip-rf">RF-07</span></td><td>Cuando la página del original y la del modificado no ocupan la misma posición, el informe debe señalarlo visualmente como página desplazada</td><td>Todos</td><td><span class="chip chip-eff-m">M</span></td></tr><tr><td><span class="chip chip-rf">RF-08</span></td><td>Cada panel debe llevar una etiqueta con su origen (original / modificado) y el número de página correspondiente en su documento</td><td>Todos</td><td><span class="chip chip-eff-m">M</span></td></tr><tr><td><span class="chip chip-rf">RF-09</span></td><td>El informe debe construirse insertando el contenido vectorial de las páginas originales, sin convertirlas a imagen</td><td>Todos</td><td>A</td></tr><tr><td><span class="chip chip-rf">RF-10</span></td><td>El sistema debe detectar que no existen diferencias entre ambos documentos e informar de ello al usuario en lugar de entregar un informe sin valor</td><td>Todos</td><td><span class="chip chip-eff-m">M</span></td></tr><tr><td><span class="chip chip-rf">RF-11</span></td><td>El sistema debe ofrecer, en la API, una comparación textual en formato <em>unified diff</em> entre el contenido de ambos documentos</td><td>Desarrollador integrador</td><td>B</td></tr></tbody></table></div>
+<h3 id="3-2-interfaz-de-l-nea-de-comandos">3.2 Interfaz de línea de comandos</h3>
+<div class="table-wrap"><table><thead><tr><th>ID</th><th>Requisito</th><th>Actor</th><th>Prio</th></tr></thead><tbody><tr><td><span class="chip chip-rf">RF-12</span></td><td>La CLI debe aceptar la ruta del PDF original y del modificado como argumentos posicionales obligatorios</td><td>Usuario de CLI</td><td>A</td></tr><tr><td><span class="chip chip-rf">RF-13</span></td><td>La CLI debe permitir indicar la ruta del informe de salida mediante una opción, con un valor por defecto cuando se omite</td><td>Usuario de CLI</td><td>A</td></tr><tr><td><span class="chip chip-rf">RF-14</span></td><td>La CLI debe validar que ambos ficheros de entrada existen antes de procesar y terminar con error y mensaje explícito si alguno falta</td><td>Usuario de CLI</td><td>A</td></tr><tr><td><span class="chip chip-rf">RF-15</span></td><td>La CLI debe informar del progreso y, al terminar, del tamaño del informe generado</td><td>Usuario de CLI</td><td>B</td></tr><tr><td><span class="chip chip-rf">RF-16</span></td><td>Ante un fallo durante la comparación, la CLI debe informar del error y terminar con código de salida distinto de cero, para poder encadenarse en scripts</td><td>Usuario de CLI</td><td><span class="chip chip-eff-m">M</span></td></tr></tbody></table></div>
+<h3 id="3-3-aplicaci-n-de-escritorio">3.3 Aplicación de escritorio</h3>
+<div class="table-wrap"><table><thead><tr><th>ID</th><th>Requisito</th><th>Actor</th><th>Prio</th></tr></thead><tbody><tr><td><span class="chip chip-rf">RF-17</span></td><td>La aplicación debe permitir seleccionar cada documento mediante un diálogo del sistema filtrado a ficheros PDF</td><td>Usuario de escritorio</td><td>A</td></tr><tr><td><span class="chip chip-rf">RF-18</span></td><td>La aplicación debe impedir lanzar la comparación si falta alguno de los dos documentos, avisando al usuario</td><td>Usuario de escritorio</td><td><span class="chip chip-eff-m">M</span></td></tr><tr><td><span class="chip chip-rf">RF-19</span></td><td>La comparación debe ejecutarse sin bloquear la interfaz, mostrando un indicador de progreso mientras dura</td><td>Usuario de escritorio</td><td>A</td></tr><tr><td><span class="chip chip-rf">RF-20</span></td><td>La aplicación debe previsualizar el informe generado dentro de la propia ventana, página a página y con desplazamiento vertical</td><td>Usuario de escritorio</td><td>A</td></tr><tr><td><span class="chip chip-rf">RF-21</span></td><td>La aplicación debe permitir descargar el informe a la carpeta de descargas del usuario, resolviendo su ubicación real en cada sistema operativo y sin sobrescribir ficheros previos</td><td>Usuario de escritorio</td><td><span class="chip chip-eff-m">M</span></td></tr><tr><td><span class="chip chip-rf">RF-22</span></td><td>La aplicación debe permitir abrir el informe con el visor de PDF por defecto del sistema operativo</td><td>Usuario de escritorio</td><td><span class="chip chip-eff-m">M</span></td></tr><tr><td><span class="chip chip-rf">RF-23</span></td><td>La aplicación debe permitir guardar el informe en una ubicación elegida por el usuario mediante diálogo</td><td>Usuario de escritorio</td><td><span class="chip chip-eff-m">M</span></td></tr><tr><td><span class="chip chip-rf">RF-24</span></td><td>La aplicación debe comunicar los errores tanto en el área de estado como en un diálogo modal, y volver a dejar la interfaz operativa</td><td>Usuario de escritorio</td><td><span class="chip chip-eff-m">M</span></td></tr><tr><td><span class="chip chip-rf">RF-25</span></td><td>Las acciones sobre el informe deben permanecer deshabilitadas mientras no exista un informe generado</td><td>Usuario de escritorio</td><td>B</td></tr></tbody></table></div>
+<h3 id="3-4-api-empaquetado-y-distribuci-n">3.4 API, empaquetado y distribución</h3>
+<div class="table-wrap"><table><thead><tr><th>ID</th><th>Requisito</th><th>Actor</th><th>Prio</th></tr></thead><tbody><tr><td><span class="chip chip-rf">RF-26</span></td><td>El paquete debe exponer una clase comparadora como API pública estable, construible a partir de las rutas de ambos documentos y capaz de devolver el informe en memoria</td><td>Desarrollador integrador</td><td>A</td></tr><tr><td><span class="chip chip-rf">RF-27</span></td><td>El proyecto debe publicarse como paquete instalable desde PyPI, declarando los dos puntos de entrada ejecutables (CLI y GUI)</td><td>Mantenedor</td><td>A</td></tr><tr><td><span class="chip chip-rf">RF-28</span></td><td>El proyecto debe poder integrarse en otro repositorio como submódulo git e importarse directamente</td><td>Desarrollador integrador</td><td>B</td></tr><tr><td><span class="chip chip-rf">RF-29</span></td><td>El proyecto debe generar ejecutables autónomos para Windows, Linux y macOS (Apple Silicon), sin requerir Python instalado en la máquina destino</td><td>Mantenedor</td><td><span class="chip chip-eff-m">M</span></td></tr><tr><td><span class="chip chip-rf">RF-30</span></td><td>La publicación de binarios y del paquete debe dispararse automáticamente al integrar en la rama principal una versión nueva, y no repetirse para una versión ya publicada</td><td>Mantenedor</td><td><span class="chip chip-eff-m">M</span></td></tr></tbody></table></div>
+</section>
+<section class="doc-section" id="4-requisitos-no-funcionales">
+<h2><a class="anchor" href="#4-requisitos-no-funcionales" aria-label="Enlace">#</a>4. Requisitos no funcionales</h2>
+<div class="table-wrap"><table><thead><tr><th>ID</th><th>Requisito</th><th>Categoría</th><th>Verificación</th></tr></thead><tbody><tr><td><span class="chip chip-nfr">NFR-01</span></td><td>El informe debe preservar el texto como texto: seleccionable y buscable en cualquier visor</td><td>Calidad de salida</td><td>Buscar una cadena conocida en el informe generado</td></tr><tr><td><span class="chip chip-nfr">NFR-02</span></td><td>El informe no debe rasterizar el contenido original; el tamaño resultante debe mantenerse en el orden de magnitud de los documentos de entrada</td><td>Rendimiento</td><td>Comparar tamaño del informe frente a la suma de las entradas</td></tr><tr><td><span class="chip chip-nfr">NFR-03</span></td><td>La instalación no debe requerir dependencias nativas externas al ecosistema Python</td><td>Portabilidad</td><td>Instalación limpia en un sistema sin herramientas PDF</td></tr><tr><td><span class="chip chip-nfr">NFR-04</span></td><td>El sistema debe funcionar sobre Python 3.12 o superior</td><td>Compatibilidad</td><td>Declarado en el empaquetado y ejercitado en CI</td></tr><tr><td><span class="chip chip-nfr">NFR-05</span></td><td>El sistema debe funcionar en Windows, macOS y Linux, incluidas las rutas específicas de cada sistema para descargas y apertura de ficheros</td><td>Portabilidad</td><td>Ejecución en las tres plataformas</td></tr><tr><td><span class="chip chip-nfr">NFR-06</span></td><td>La interfaz gráfica no debe congelarse durante la comparación: el trabajo pesado se ejecuta fuera del hilo de interfaz y la comunicación entre hilos es segura</td><td>Usabilidad / robustez</td><td>Comparar un documento extenso y verificar que la ventana responde</td></tr><tr><td><span class="chip chip-nfr">NFR-07</span></td><td>La previsualización debe renderizarse a resolución reducida para acotar el consumo de memoria, sin afectar a la calidad del informe entregado</td><td>Rendimiento</td><td>Inspección del uso de memoria con documentos de muchas páginas</td></tr><tr><td><span class="chip chip-nfr">NFR-08</span></td><td>Los documentos abiertos deben cerrarse siempre al terminar el proceso, sin dejar descriptores abiertos</td><td>Robustez</td><td>Comparaciones encadenadas en un proceso de larga vida</td></tr><tr><td><span class="chip chip-nfr">NFR-09</span></td><td>Todo el procesamiento debe ser local: el sistema no envía los documentos ni su contenido a ningún servicio externo</td><td>Privacidad / RGPD</td><td>Ausencia de tráfico de red durante una comparación</td></tr><tr><td><span class="chip chip-nfr">NFR-10</span></td><td>La publicación en PyPI debe realizarse sin credenciales de larga duración almacenadas en el repositorio</td><td>Seguridad</td><td>Revisión del workflow de publicación</td></tr><tr><td><span class="chip chip-nfr">NFR-11</span></td><td>El proceso de publicación debe ser idempotente: una versión ya publicada no vuelve a publicarse aunque se repita la ejecución</td><td>Fiabilidad</td><td>Reejecución del workflow sobre una versión existente</td></tr><tr><td><span class="chip chip-nfr">NFR-12</span></td><td>El código fuente debe permanecer en un único paquete Python sin dependencias circulares entre interfaz, CLI y núcleo de comparación</td><td>Mantenibilidad</td><td>Revisión de imports: el núcleo no importa CLI ni GUI</td></tr></tbody></table></div>
+</section>
+<section class="doc-section" id="5-restricciones-t-cnicas-no-negociables">
+<h2><a class="anchor" href="#5-restricciones-t-cnicas-no-negociables" aria-label="Enlace">#</a>5. Restricciones técnicas no negociables</h2>
+<div class="table-wrap"><table><thead><tr><th>ID</th><th>Restricción</th><th>Motivo</th></tr></thead><tbody><tr><td>RT-01</td><td>La manipulación de PDF se realiza con <strong>PyMuPDF</strong>; es la dependencia estructural del núcleo y la que hace innecesarias las herramientas nativas</td><td>Sustituye al enfoque previo basado en Poppler e imágenes; cambiarla implica reescribir el núcleo</td></tr><tr><td>RT-02</td><td>La interfaz gráfica se construye con <strong>CustomTkinter</strong> sobre Tcl/Tk, con hooks propios de runtime en el empaquetado para Linux y macOS</td><td>Ya resuelto en los scripts de build; cambiar de framework invalida el empaquetado actual</td></tr><tr><td>RT-03</td><td>Los parámetros <code>--dpi</code> y <code>--quality</code> de la CLI, y las constantes <code>PDF_RENDER_DPI</code> y <code>JPEG_QUALITY</code> de <code>pdf_compare/config.py</code>, <strong>se mantienen aunque no tengan efecto</strong> en el render vectorial</td><td>Compatibilidad hacia atrás: la API y la CLI ya están publicadas en PyPI y retirarlas rompería a consumidores existentes</td></tr><tr><td>RT-04</td><td>La versión del producto es la declarada en <code>pyproject.toml</code> y debe mantenerse sincronizada con <code>pdf_compare/__init__.py</code>; el CI la lee de <code>pyproject.toml</code> para etiquetar y publicar</td><td>El release automático depende de esa única fuente</td></tr><tr><td>RT-05</td><td>El empaquetado usa <code>hatchling</code> como backend de construcción y <code>uv</code> como gestor de entorno en CI</td><td>Fijado en el workflow y en los scripts de build</td></tr><tr><td>RT-06</td><td>El versionado sigue un esquema <strong>calendario</strong> (<code>AAAA.M.P</code>), no semántico</td><td>Versión actual <code>2026.2.3</code>; condiciona cómo se comunican los cambios incompatibles</td></tr><tr><td>RT-07</td><td>La compatibilidad de licencias entre el código propio y PyMuPDF condiciona la distribución del producto</td><td>Ver <strong>P-01</strong> en la sección 8: hay una contradicción sin resolver</td></tr></tbody></table></div>
+</section>
+<section class="doc-section section-scope" id="6-alcance">
+<h2><a class="anchor" href="#6-alcance" aria-label="Enlace">#</a>6. Alcance</h2>
+<h3 id="dentro-de-esta-fase-as-is">Dentro de esta fase (as-is)</h3>
+<ul><li>Comparación de dos documentos PDF <strong>con capa de texto</strong>, con alineado de páginas y resaltado de diferencias por palabra.</li><li>Las tres interfaces existentes: CLI, aplicación de escritorio y API Python.</li><li>Empaquetado y distribución actuales: PyPI, binarios autónomos para las tres plataformas y uso como submódulo.</li></ul>
+<h3 id="fuera-de-esta-fase">Fuera de esta fase</h3>
+<ul><li><strong>PDF escaneados o sin capa de texto.</strong> El alineado y el resaltado dependen íntegramente del texto extraíble; sobre un documento escaneado el sistema no detecta diferencias. Es una <strong>limitación conocida y declarada</strong>: la herramienta exige documentos con capa de texto y no se compromete a incorporar OCR. Desde el 2026-08-17 el sistema <strong>sí detecta y avisa</strong> de que falta la capa de texto en lugar de entregar en silencio un informe sin diferencias (ver D-08); sigue sin haber OCR.</li><li>Comparación de más de dos documentos o de carpetas completas.</li><li>Detección de diferencias <strong>no textuales</strong>: imágenes, gráficos vectoriales, cambios de color o de tipografía sin cambio de contenido.</li><li>Comparación semántica o por lenguaje natural (resumen de cambios, clasificación de relevancia).</li><li>Cualquier funcionalidad multiusuario, de servidor o de red: autenticación, historial, almacenamiento compartido.</li><li>Internacionalización: la interfaz y las etiquetas del informe están en inglés y así permanecen.</li><li>Configuración persistente de preferencias de usuario.</li></ul>
+</section>
+<section class="doc-section" id="7-variables-de-entorno-y-configuraci-n-requerida">
+<h2><a class="anchor" href="#7-variables-de-entorno-y-configuraci-n-requerida" aria-label="Enlace">#</a>7. Variables de entorno y configuración requerida</h2>
+<p>El producto <strong>no consume ninguna variable de entorno propia</strong> en tiempo de ejecución. Toda su configuración es por argumentos de CLI o por parámetros del constructor de la API.</p>
+<div class="table-wrap"><table><thead><tr><th>Elemento</th><th>Ámbito</th><th>Uso</th></tr></thead><tbody><tr><td><code>pdf_compare/config.py</code></td><td>Ejecución</td><td>Constantes heredadas del render por imagen, sin efecto actual (ver RT-03)</td></tr><tr><td>Carpeta temporal del sistema</td><td>Ejecución (GUI)</td><td>Ubicación del informe intermedio antes de descargarlo o guardarlo</td></tr><tr><td>Carpeta de descargas del usuario</td><td>Ejecución (GUI)</td><td>Destino de la acción de descarga; se resuelve por registro en Windows y por convención en macOS/Linux</td></tr><tr><td>Entorno <code>pypi-release</code> de GitHub</td><td>CI/CD</td><td>Entorno protegido desde el que se publica el paquete</td></tr><tr><td>OIDC de GitHub Actions</td><td>CI/CD</td><td>Publicación en PyPI sin token almacenado (<em>trusted publishing</em>)</td></tr><tr><td><code>GITHUB_TOKEN</code></td><td>CI/CD</td><td>Creación de tags y releases; lo provee la propia plataforma</td></tr></tbody></table></div>
+<p>Sin secretos propios que gestionar en local.</p>
+</section>
+<section class="doc-section" id="8-preguntas-abiertas-y-pendientes">
+<h2><a class="anchor" href="#8-preguntas-abiertas-y-pendientes" aria-label="Enlace">#</a>8. Preguntas abiertas y pendientes</h2>
+<ul><li><strong>P-01 · <span class="chip chip-block">BLOQUEANTE</span> Contradicción de licencia.</strong> El fichero <code>LICENSE</code> del repositorio contiene la <strong>GPL-3.0</strong>, mientras que <code>pyproject.toml</code> y el <code>README.md</code> declaran <strong>MIT</strong>. Además, PyMuPDF (RT-01) se distribuye bajo AGPL-3.0 o licencia comercial, lo que condiciona bajo qué licencia puede distribuirse un producto que la enlaza. Hay que decidir cuál es la licencia real del proyecto y alinear los tres sitios. Afecta a RT-07 y a toda la distribución (<span class="chip chip-rf">RF-27</span>, <span class="chip chip-rf">RF-29</span>).</li><li>~~<strong>P-02 · Discrepancia entre la documentación y el comportamiento de <span class="chip chip-rf">RF-10</span>.</strong>~~ <strong>Resuelto el 2026-08-17.</strong> <code>compare_visuals()</code> devuelve <code>None</code> cuando no hay ninguna diferencia, y la CLI y la GUI informan de ello; las ramas que antes eran inalcanzables ahora se ejecutan. Se define &quot;sin diferencias&quot; como: ninguna página añadida ni eliminada, y ningún cambio de texto a nivel de palabra en las páginas emparejadas.</li><li><strong>P-03 · <span class="chip chip-rf">RF-11</span> no está expuesto.</strong> La comparación textual en <em>unified diff</em> existe en el núcleo pero no la alcanza ninguna interfaz. Decidir si se expone en la CLI, si se documenta como API o si se retira.</li><li><strong>P-04 · Umbrales de alineado.</strong> El 2026-08-17 se corrigieron dos defectos que incumplían <span class="chip chip-rf">RF-02</span>, <span class="chip chip-rf">RF-03</span> y <span class="chip chip-rf">RF-05</span>: un <em>off-by-one</em> que hacía explorar 2 posiciones en lugar de las 3 declaradas, y el uso del umbral absoluto de &quot;misma página&quot; (0,6) también para decidir si una página está desplazada. Este segundo defecto impedía detectar una inserción cuando la página desplazada <strong>además había sido editada</strong>, con lo que la página añadida se emparejaba con la original y la verdadera equivalente se marcaba como añadida. La detección de desplazamiento es ahora <strong>relativa</strong> (el candidato debe encajar <code>SHIFT_MARGIN</code> veces mejor que el emparejamiento actual y superar un suelo de ruido), y las cuatro constantes están documentadas a nivel de módulo. <strong>Queda abierto</strong>: los valores concretos siguen elegidos por criterio y no por medida, y el alineado sigue siendo voraz y local, por lo que no recupera desplazamientos mayores que <code>LOOKAHEAD_WINDOW</code>. Decidir si se validan con un corpus de documentos reales o si se sustituye por un alineado global.</li><li><strong>P-05 · No hay verificación automática.</strong> El proyecto declara <code>pytest</code> como dependencia de desarrollo pero no contiene ni un test, y el CI solo construye y publica: ningún requisito de este catálogo está verificado de forma automatizada. Los documentos <code>sample-files/</code> cubren los cuatro escenarios de alineado y son la base natural para esa suite. <strong>Sigue abierto y es ahora más urgente</strong>: las correcciones del 2026-08-17 se validaron con comprobaciones manuales y desechables, que no protegen de regresiones futuras.</li><li><strong>P-06 · Límites operativos sin definir.</strong> No hay criterio establecido de número máximo de páginas, tamaño de fichero ni tiempo de respuesta aceptable. <span class="chip chip-nfr">NFR-02</span> y <span class="chip chip-nfr">NFR-07</span> se han redactado como cualitativos; convendría cuantificarlos con medidas reales antes de comprometerlos.</li><li><strong>P-07 · Trazabilidad de errores.</strong> El sistema informa por salida estándar y por diálogos, sin registro estructurado. Decidir si un producto de escritorio local necesita observabilidad o si basta lo actual.</li></ul>
+</section>
+<section class="doc-section" id="9-decisiones-tomadas-en-el-paso-1-1">
+<h2><a class="anchor" href="#9-decisiones-tomadas-en-el-paso-1-1" aria-label="Enlace">#</a>9. Decisiones tomadas en el paso 1.1</h2>
+<div class="table-wrap"><table><thead><tr><th>#</th><th>Pregunta</th><th>Opciones</th><th>Decisión</th><th>Origen</th><th>Justificación</th></tr></thead><tbody><tr><td>D-01</td><td>¿El documento cubre solo el estado actual o también la evolución prevista?</td><td>as-is / as-is + to-be</td><td><strong>Solo el estado actual (as-is)</strong></td><td>usuario</td><td>El repositorio es <em>brownfield</em> sin backlog definido; la línea base trazable es lo que permite que cada evolución entre después como <em>change</em> de AISDD</td></tr><tr><td>D-02</td><td>¿Cómo se recoge la incapacidad de tratar PDF escaneados?</td><td>fuera de alcance / degradación controlada / OCR futuro</td><td><strong>Fuera de alcance, explícito</strong></td><td>usuario</td><td>Se declara como limitación conocida en la sección 6 sin comprometer OCR, que añadiría una dependencia pesada al producto</td></tr><tr><td>D-03</td><td>¿Qué comportamiento se formaliza cuando no hay diferencias?</td><td>informar / generar siempre el informe</td><td><strong>Informar de que no hay cambios</strong> (<span class="chip chip-rf">RF-10</span>)</td><td>usuario</td><td>Se toma como correcto lo documentado en el <code>README.md</code>; la implementación actual queda registrada como deuda en P-02</td></tr><tr><td>D-04</td><td>¿Qué estatus tienen los parámetros heredados <code>--dpi</code>, <code>--quality</code> y <code>config.py</code>?</td><td>restricción de compatibilidad / deprecados a eliminar</td><td><strong>Restricción de compatibilidad</strong> (RT-03)</td><td>usuario</td><td>La API y la CLI ya están publicadas en PyPI; retirarlas sería un cambio incompatible para consumidores existentes</td></tr><tr><td>D-05</td><td>¿Cómo se trata la ausencia de <code>docs/cliente-requisitos.md</code>?</td><td>bloquear / continuar por ingeniería inversa</td><td><strong>Continuar por ingeniería inversa</strong></td><td>default</td><td>El producto existe y es la fuente de verdad más fiable; se deja constancia de que no hubo brief formal de cliente</td></tr><tr><td>D-06</td><td>¿Se documentan roles con permisos?</td><td>sí / no aplica</td><td><strong>No aplica: perfiles de uso</strong></td><td>default</td><td>La herramienta es local y monousuario, sin autenticación ni control de acceso que modelar</td></tr><tr><td>D-07</td><td>¿Se resuelve la contradicción de licencia detectada?</td><td>resolver ahora / registrar como bloqueante</td><td><strong>Registrar como bloqueante</strong> (P-01)</td><td>default</td><td>Es una decisión legal del propietario del proyecto, no derivable del código</td></tr><tr><td>D-08</td><td>¿Se avisa de la ausencia de capa de texto?</td><td>mantener D-02 estricto / avisar</td><td><strong>Avisar</strong></td><td>usuario</td><td>Corrige D-02. La revisión de código del 2026-08-17 (hallazgo F8) mostró que <code>ratio(&#x27;&#x27;,&#x27;&#x27;) == 1.0</code> hace que un escaneado produzca un informe que afirma que no hay cambios: un fallo silencioso. El usuario aprobó aplicar los hallazgos de la revisión, lo que introduce la degradación controlada que D-02 había descartado. Sigue sin haber OCR, así que el alcance de la sección 6 no cambia</td></tr></tbody></table></div>
+</section>
+    </main>
+  </div>
+  <script>
+    // Theme toggle (auto -> claro -> oscuro), persisted per browser. Classic script:
+    // must keep working even without network (the Mermaid loader lives apart).
+    (function () {
+      const KEY = 'booster-docs-theme';
+      const btn = document.getElementById('themeToggle');
+      const modes = ['auto', 'light', 'dark'];
+      const icons = { auto: '\u25D1', light: '\u2600', dark: '\u263E' };
+      let mode = localStorage.getItem(KEY);
+      if (!modes.includes(mode)) mode = 'auto';
+      function apply() {
+        if (mode === 'auto') delete document.documentElement.dataset.theme;
+        else document.documentElement.dataset.theme = mode;
+        btn.textContent = icons[mode];
+        btn.title = 'Tema: ' + mode;
+      }
+      btn.addEventListener('click', () => {
+        mode = modes[(modes.indexOf(mode) + 1) % modes.length];
+        localStorage.setItem(KEY, mode);
+        apply();
+      });
+      apply();
+    })();
+
+    // Scroll-spy: highlight the current section in the TOC.
+    (function () {
+      const links = [...document.querySelectorAll('.toc a')];
+      if (!links.length) return;
+      const map = new Map(links.map(a => [a.getAttribute('href').slice(1), a]));
+      const obs = new IntersectionObserver(entries => {
+        entries.forEach(e => {
+          if (e.isIntersecting) {
+            links.forEach(a => a.classList.remove('active'));
+            const a = map.get(e.target.id);
+            if (a) a.classList.add('active');
+          }
+        });
+      }, { rootMargin: '-10% 0px -80% 0px' });
+      document.querySelectorAll('section[id]').forEach(s => obs.observe(s));
+    })();
+  </script>
+  <script>
+    // Mermaid loader, best-effort and fail-visible.
+    //
+    // Uses the SELF-CONTAINED bundle (mermaid.min.js), never the ESM entry: the
+    // ESM build lazy-loads one chunk per diagram type at render time, so a single
+    // blocked request behind a corporate proxy leaves the diagrams silently blank
+    // -- and it fails inside Mermaid's async render, out of reach of any try/catch
+    // around the import.
+    //
+    // Order: the local copy next to this HTML first (works offline, over file://
+    // and behind a
+    // proxy), then the CDN. Classic <script> tags, so onerror actually fires and
+    // the fallback chain is real. If everything fails, the source stays visible
+    // with a notice instead of an empty gap.
+    (function () {
+      if (!document.querySelector('.mermaid')) return;
+      // Same pinned version on both ends, so the CDN fallback cannot drift from
+      // the local asset this script provisions.
+      var sources = ['mermaid.min.js',
+                     'https://cdn.jsdelivr.net/npm/mermaid@11.16.0/dist/mermaid.min.js'];
+      function fail() {
+        document.querySelectorAll('.diagram').forEach(function (d) {
+          d.classList.add('offline');
+        });
+      }
+      function start() {
+        try {
+          var dark = document.documentElement.dataset.theme === 'dark'
+            || (document.documentElement.dataset.theme !== 'light'
+                && window.matchMedia('(prefers-color-scheme: dark)').matches);
+          mermaid.initialize({ startOnLoad: false, securityLevel: 'strict',
+                               theme: dark ? 'dark' : 'default' });
+          // Explicit run() instead of startOnLoad: it returns a promise, so a
+          // render error is catchable rather than swallowed.
+          mermaid.run({ querySelector: '.mermaid' }).catch(fail);
+        } catch (e) { fail(); }
+      }
+      function load(i) {
+        if (i >= sources.length) { fail(); return; }
+        var s = document.createElement('script');
+        s.src = sources[i];
+        s.onload = start;
+        s.onerror = function () { load(i + 1); };
+        document.head.appendChild(s);
+      }
+      load(0);
+    })();
+  </script>
+</body>
+</html>
