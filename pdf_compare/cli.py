@@ -1,6 +1,7 @@
 import argparse
 import os
 import sys
+import fitz  # PyMuPDF
 from pdf_compare.comparator import PDFComparator
 
 # Load configuration from config.py (kept for backward compatibility)
@@ -10,6 +11,28 @@ except ImportError:
     # Fallback defaults if config.py is not found
     PDF_RENDER_DPI = 75
     JPEG_QUALITY = 75
+
+def validate_pdf(file_path):
+    """Check the file is a PDF we can actually read.
+
+    Returns an error message, or None if the file is usable. Existence alone is
+    not enough: a renamed text file, a corrupt document or a password-protected
+    one would otherwise fail deep inside PyMuPDF with an opaque traceback.
+    """
+    if not os.path.exists(file_path):
+        return f"File '{file_path}' not found."
+
+    try:
+        with fitz.open(file_path) as doc:
+            if doc.needs_pass:
+                return f"File '{file_path}' is password protected."
+            if doc.page_count == 0:
+                return f"File '{file_path}' has no pages."
+    except Exception as e:
+        return f"File '{file_path}' is not a valid PDF ({e})."
+
+    return None
+
 
 def main():
     parser = argparse.ArgumentParser(description="Compare two PDF files and generate a vector-based diff report.")
@@ -22,13 +45,11 @@ def main():
 
     args = parser.parse_args()
 
-    if not os.path.exists(args.file_a):
-        print(f"Error: File '{args.file_a}' not found.")
-        sys.exit(1)
-
-    if not os.path.exists(args.file_b):
-        print(f"Error: File '{args.file_b}' not found.")
-        sys.exit(1)
+    for file_path in (args.file_a, args.file_b):
+        error = validate_pdf(file_path)
+        if error:
+            print(f"Error: {error}")
+            sys.exit(1)
 
     print(f"Comparing '{args.file_a}' and '{args.file_b}'...")
     print("Using vector-based rendering (preserves text and graphics quality)")
@@ -37,8 +58,12 @@ def main():
         comparator = PDFComparator(args.file_a, args.file_b)
         pdf_bytes = comparator.compare_visuals()
 
-        if not pdf_bytes:
-            print("No differences found or error occurred.")
+        if comparator.missing_text_layer:
+            print("Warning: at least one document has no text layer (a scan, for example).")
+            print("Differences are detected from text, so the result is not reliable.")
+
+        if pdf_bytes is None:
+            print("No differences found. No report generated.")
         else:
             print(f"Saving vector-based report to '{args.output}'...")
 
