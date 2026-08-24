@@ -56,6 +56,10 @@ Issues = "https://github.com/grananda/Py-PDF-Compare/issues"
 pdf-compare = "pdf_compare.cli:main"
 pdf-compare-gui = "pdf_compare.gui:main"
 
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q --strict-markers"
+
 [tool.hatch.build.targets.wheel]
 packages = ["pdf_compare"]
 
