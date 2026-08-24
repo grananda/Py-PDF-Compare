@@ -66,6 +66,9 @@ sudo apt install python3.12 python3.12-venv
 # Compare two PDFs
 pdf-compare original.pdf modified.pdf -o diff.pdf
 
+# Get a machine-readable summary instead of a PDF
+pdf-compare original.pdf modified.pdf --json result.json
+
 # Launch GUI application
 pdf-compare-gui
 
@@ -130,6 +133,31 @@ if result is not None:
 else:
     print("No differences found")
 ```
+
+#### `analyze() -> dict`
+
+Run the same comparison without composing the PDF, and return the result as plain data. Intended for automation: which files were compared and how much changed.
+
+```json
+{
+  "files": {
+    "original": {"name": "a.pdf", "path": "/abs/a.pdf", "pages": 3},
+    "modified": {"name": "b.pdf", "path": "/abs/b.pdf", "pages": 4}
+  },
+  "identical": false,
+  "missing_text_layer": false,
+  "changes": {
+    "pages_added": 1, "pages_removed": 0, "pages_modified": 0,
+    "words_added": 78, "words_removed": 0
+  }
+}
+```
+
+Counts are reported rather than a similarity percentage, deliberately: a percentage needs a denominator nobody agrees on (words of the original? of both? what is a whole added page worth?), while counts are facts the caller can turn into whatever ratio they need.
+
+`identical: true` is only trustworthy when `missing_text_layer` is `false`. A scan has no extractable text, so it looks unchanged — always check both fields together.
+
+The same comparison, literally: `analyze()` and `compare_visuals()` share the page alignment and the word-level diff, so they can never disagree. It is **not** meaningfully faster, though — composing the report references the source pages as vector objects rather than rendering them, so building the PDF costs almost nothing. The reason to use it is the format, and not writing a large file you do not need.
 
 ## How It Works
 
