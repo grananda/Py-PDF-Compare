@@ -1,4 +1,5 @@
 import argparse
+import json
 import os
 import sys
 import fitz  # PyMuPDF
@@ -34,11 +35,21 @@ def validate_pdf(file_path):
     return None
 
 
+def warn_missing_text_layer(comparator):
+    """Warn when the comparison cannot be trusted because there is no text."""
+    if comparator.missing_text_layer:
+        print("Warning: at least one document has no text layer (a scan, for example).")
+        print("Differences are detected from text, so the result is not reliable.")
+
+
 def main():
     parser = argparse.ArgumentParser(description="Compare two PDF files and generate a vector-based diff report.")
     parser.add_argument("file_a", help="Path to the first PDF file (Original)")
     parser.add_argument("file_b", help="Path to the second PDF file (Modified)")
-    parser.add_argument("-o", "--output", default="report.pdf", help="Path to save the output report (default: report.pdf)")
+    parser.add_argument("-o", "--output", default=None, help="Path to save the output PDF report (default: report.pdf)")
+    parser.add_argument("--json", metavar="PATH", default=None,
+                        help="Write a JSON summary of the comparison to PATH instead of building "
+                             "the PDF (much faster: composing the document is where the cost is)")
     # DPI and quality kept for backward compatibility but not used in vector rendering
     parser.add_argument("--dpi", type=int, default=PDF_RENDER_DPI, help=f"DPI for PDF rendering (not used in vector mode, kept for compatibility)")
     parser.add_argument("--quality", type=int, default=JPEG_QUALITY, help=f"JPEG quality (not used in vector mode, kept for compatibility)")
@@ -51,28 +62,46 @@ def main():
             print(f"Error: {error}")
             sys.exit(1)
 
+    if args.json and args.output:
+        print("Warning: --json skips the PDF report, so -o/--output is ignored.")
+
     print(f"Comparing '{args.file_a}' and '{args.file_b}'...")
-    print("Using vector-based rendering (preserves text and graphics quality)")
 
     try:
         comparator = PDFComparator(args.file_a, args.file_b)
+
+        if args.json:
+            report = comparator.analyze()
+
+            with open(args.json, 'w', encoding='utf-8') as f:
+                json.dump(report, f, indent=2, ensure_ascii=False)
+
+            warn_missing_text_layer(comparator)
+            changes = report['changes']
+            print(f"Wrote JSON summary to '{args.json}'.")
+            print(f"Identical: {report['identical']} | "
+                  f"pages +{changes['pages_added']} -{changes['pages_removed']} "
+                  f"~{changes['pages_modified']} | "
+                  f"words +{changes['words_added']} -{changes['words_removed']}")
+            return
+
+        print("Using vector-based rendering (preserves text and graphics quality)")
+        output = args.output or "report.pdf"
         pdf_bytes = comparator.compare_visuals()
 
-        if comparator.missing_text_layer:
-            print("Warning: at least one document has no text layer (a scan, for example).")
-            print("Differences are detected from text, so the result is not reliable.")
+        warn_missing_text_layer(comparator)
 
         if pdf_bytes is None:
             print("No differences found. No report generated.")
         else:
-            print(f"Saving vector-based report to '{args.output}'...")
+            print(f"Saving vector-based report to '{output}'...")
 
             # Write the PDF bytes directly to file
-            with open(args.output, 'wb') as f:
+            with open(output, 'wb') as f:
                 f.write(pdf_bytes)
 
             # Get file size
-            file_size = os.path.getsize(args.output)
+            file_size = os.path.getsize(output)
             file_size_mb = file_size / (1024 * 1024)
 
             print(f"Done. Report size: {file_size_mb:.2f} MB")
