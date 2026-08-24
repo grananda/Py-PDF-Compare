@@ -66,6 +66,15 @@ sudo apt install python3.12 python3.12-venv
 # Compare two PDFs
 pdf-compare original.pdf modified.pdf -o diff.pdf
 
+# Get a machine-readable summary instead of a PDF
+pdf-compare original.pdf modified.pdf --json result.json
+
+# Compare two folders: diff documents plus an HTML report
+pdf-compare ./version-1 ./version-2 --out ./diffs
+
+# Compare two folders, report only
+pdf-compare ./version-1 ./version-2 --report changes.html
+
 # Launch GUI application
 pdf-compare-gui
 
@@ -131,6 +140,56 @@ else:
     print("No differences found")
 ```
 
+#### `analyze() -> dict`
+
+Run the same comparison without composing the PDF, and return the result as plain data. Intended for automation: which files were compared and how much changed.
+
+```json
+{
+  "files": {
+    "original": {"name": "a.pdf", "path": "/abs/a.pdf", "pages": 3},
+    "modified": {"name": "b.pdf", "path": "/abs/b.pdf", "pages": 4}
+  },
+  "identical": false,
+  "missing_text_layer": false,
+  "changes": {
+    "pages_added": 1, "pages_removed": 0, "pages_modified": 0,
+    "words_added": 78, "words_removed": 0
+  }
+}
+```
+
+Counts are reported rather than a similarity percentage, deliberately: a percentage needs a denominator nobody agrees on (words of the original? of both? what is a whole added page worth?), while counts are facts the caller can turn into whatever ratio they need.
+
+`identical: true` is only trustworthy when `missing_text_layer` is `false`. A scan has no extractable text, so it looks unchanged — always check both fields together.
+
+The same comparison, literally: `analyze()` and `compare_visuals()` share the page alignment and the word-level diff, so they can never disagree. It is **not** meaningfully faster, though — composing the report references the source pages as vector objects rather than rendering them, so building the PDF costs almost nothing. The reason to use it is the format, and not writing a large file you do not need.
+
+## Comparing folders
+
+Pass two directories instead of two files and every document is compared against its
+counterpart in the other folder:
+
+```bash
+pdf-compare ./version-1 ./version-2 --out ./diffs      # diffs + report
+pdf-compare ./version-1 ./version-2 --report r.html    # report only
+```
+
+**Pairing.** Documents are matched by file name. Identical names (ignoring case) are
+matched first, so a perfect name can never be taken by a similar one; the rest are matched
+by name similarity, best score first and one-to-one, above a threshold. A file whose
+counterpart cannot be found is **never compared silently** — it is listed in the report,
+since a document with no counterpart usually means one was added or withdrawn.
+
+**Output.** `--out DIR` writes the diff of every differing pair into `DIR`; identical pairs
+produce no document. An HTML report is **always** written: to `report.html` inside `--out`,
+or to the path given by `--report`. Without `--out` nothing but the report is produced.
+
+The report is a single self-contained file — no external requests — listing every pair with
+its page and word changes, linking each diff document, and calling out the two cases that
+need a human: documents with no counterpart, and pairs with no text layer, whose result
+cannot be trusted.
+
 ## How It Works
 
 1. **Text Extraction**: Extracts text and layout information from each page using PyMuPDF
@@ -160,9 +219,12 @@ Py-PDF-Compare/
 ├── pdf_compare/
 │   ├── __init__.py         # Package initialization
 │   ├── comparator.py       # Core comparison logic
+│   ├── batch.py            # Folder pairing and HTML report
 │   ├── cli.py              # Command-line interface
 │   ├── gui.py              # Desktop GUI application
 │   └── config.py           # Configuration
+├── tests/                  # Test suite (pytest)
+├── .claude/skills/         # Claude Code skill shipped with the project
 ├── scripts/
 │   ├── build_windows.py    # Build Windows executable
 │   ├── build_linux.py      # Build Linux executable
@@ -262,6 +324,34 @@ Then import in your Python code:
 ```python
 from pdf_compare import PDFComparator
 ```
+
+## Claude Code skill
+
+The repository ships a [Claude Code](https://claude.com/claude-code) skill in
+`.claude/skills/pdf-compare/`. It is picked up automatically when Claude Code runs in this
+project — nothing to install — and turns a request like *"compare these two PDFs"* or
+*"compare these folders"* into the right invocation. If you do not use Claude Code, the
+directory is inert.
+
+What it encodes is the operational knowledge that is otherwise learned the hard way:
+
+- **Never run a bare `pdf-compare`.** A copy installed with `uv tool install` is frozen at
+  whatever version was current that day. The skill resolves the build explicitly — the
+  working copy when there is one, `uvx --from "py-pdf-compare@latest"` otherwise — and
+  states which one it ran, so a surprising result is never confused with a stale binary.
+- **Argument order decides the colours**: the first document is drawn on the left, with its
+  differences in red.
+- **An identical pair writes no file at all**, so there is no report to go looking for.
+- **A missing text layer makes the result untrustworthy** — and in a batch of two hundred
+  documents, easy to miss among the pairs that worked.
+- **Documents with no counterpart were never compared**, which usually means one was added
+  or withdrawn: often the most important finding in a batch.
+- **A wall of differences starting at one specific page** points at the alignment lookahead
+  window being exceeded, before it points at a genuinely rewritten document.
+- **Document contents never get pasted into the conversation.** The PDFs compared in
+  practice are contracts, policies and invoices.
+
+Ask for it in plain language, or invoke it explicitly with `/pdf-compare`.
 
 ## License
 

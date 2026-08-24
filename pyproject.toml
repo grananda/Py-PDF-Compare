@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "py-pdf-compare"
-version = "2026.8.17"
+version = "2026.8.24"
 description = "Compare two PDF files and generate a visual diff report with highlighted differences"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -55,6 +55,10 @@ Issues = "https://github.com/grananda/Py-PDF-Compare/issues"
 [project.scripts]
 pdf-compare = "pdf_compare.cli:main"
 pdf-compare-gui = "pdf_compare.gui:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q --strict-markers"
 
 [tool.hatch.build.targets.wheel]
 packages = ["pdf_compare"]
