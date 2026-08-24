@@ -1,0 +1,128 @@
+{
+  "title": "Review — task/json-report contra main (merge readiness)",
+  "scope": "10 commits: informe JSON, comparacion por carpetas, suite de tests y pipeline. pdf_compare/batch.py, cli.py, comparator.py",
+  "focus": "correctness",
+  "date": "2026-08-24",
+  "verdict": "fixes-needed",
+  "verdict_note": "1 bloqueante verificado: un solo documento cifrado aborta el lote entero",
+  "summary": "La rama esta en muy buen estado: 87 tests, tres sistemas operativos en verde, y una arquitectura donde el PDF y el JSON no pueden discrepar porque comparten una sola implementacion. Lo que queda no esta en la logica de comparacion, que esta bien cubierta, sino en la robustez del modo lote: procesa N documentos sin ningun aislamiento entre ellos, asi que el fallo de uno se lleva por delante el trabajo de todos. Es la diferencia entre una operacion sobre un par y una operacion por lotes, y es justo lo que no se hereda al pasar de una a otra.",
+  "good": [
+    "El PDF y el JSON salen de un unico compare(build_pdf=...): no pueden discrepar, y ademas un lote que pide diff e informe recorre los documentos una sola vez en lugar de dos.",
+    "El emparejado toma los nombres identicos primero, de modo que una coincidencia aproximada no puede robar una exacta. Es la trampa evidente del algoritmo y esta cubierta con un test.",
+    "Los documentos sin pareja nunca se descartan en silencio: se listan en el informe. En un lote es probablemente el hallazgo mas importante y no queda enterrado en un recuento.",
+    "El informe HTML es un fichero autocontenido, sin peticiones externas, verificado por test: funciona con doble clic y detras de un proxy corporativo.",
+    "Los tests de regresion protegen su propia premisa: el de la pagina desplazada comprueba que sus textos siguen cayendo en la banda de similitud donde el bug ocurria, asi que no puede dejar de ser una regresion sin que alguien se entere.",
+    "El pipeline por fin bloquea: build y publish-pypi dependen de los tests, y publish-pypi ya no puede publicar en PyPI con la construccion de binarios rota."
+  ],
+  "labels": {
+    "blocking": "Bloqueante", "improvement": "Mejora", "optional": "Opcional",
+    "what": "Que pasa", "why": "Por que importa", "suggestion": "Sugerencia",
+    "good": "Lo que esta bien resuelto", "location": "Ubicacion",
+    "scope": "Alcance", "focus": "Foco"
+  },
+  "findings": [
+    {
+      "id": "F1",
+      "priority": "blocking",
+      "tag": "robustez",
+      "title": "Un documento ilegible aborta el lote entero y pierde todo el trabajo",
+      "file": "pdf_compare/batch.py",
+      "lines": [81, 96],
+      "highlight": [86],
+      "context": 3,
+      "lang": "python",
+      "what": "El bucle llama a comparator.compare() sin ningun aislamiento por pareja. Si un documento esta cifrado, corrupto o ilegible, la excepcion sube hasta el manejador generico de la CLI, que imprime una traza y termina con codigo 1. Ademas el modo lote no ejecuta validate_pdf() sobre los ficheros, que es justo lo que el modo de un solo par si hace.",
+      "impact": "Verificado: una carpeta con tres parejas donde la de en medio esta protegida con contrasena falla con 'ValueError: document closed or encrypted' y no produce ni informe ni diffs. Las dos parejas buenas se comparan y su resultado se tira. Sobre las carpetas de polizas reales que motivaron esta funcion, un solo documento protegido invalida la ejecucion completa y el usuario solo ve un traceback.",
+      "why": "Una operacion por lotes tiene un contrato distinto al de una operacion sobre un elemento: se espera que un elemento malo se registre y se siga, no que anule a los demas. La robustez no se hereda al envolver una operacion en un bucle; hay que anadirla explicitamente, y el sitio natural es el limite de cada elemento.",
+      "suggestion": "Aislar cada pareja: capturar el fallo, registrarlo en su entrada del resultado y continuar. El informe ya tiene sitio para mostrarlo junto a los sin pareja y los escaneados, que son la misma categoria de 'esto necesita un humano'. Vale la pena decidir tambien si un lote con fallos debe terminar con codigo distinto de cero para que un script se entere.",
+      "change": {
+        "before": "comparator = PDFComparator(path_a, path_b)\nsummary, pdf_bytes = comparator.compare(build_pdf=bool(output_dir))",
+        "after": "comparator = PDFComparator(path_a, path_b)\ntry:\n    summary, pdf_bytes = comparator.compare(build_pdf=bool(output_dir))\nexcept Exception as error:\n    results.append(failed_pair(name_a, name_b, score, error))\n    continue",
+        "lang": "python"
+      },
+      "test_gap": "El diff no cubre este caso: ningun test mete un documento ilegible en una carpeta. Hace falta uno que compare dos carpetas donde una pareja esta cifrada y afirme que las demas si se comparan y que el informe registra el fallo."
+    },
+    {
+      "id": "F2",
+      "priority": "improvement",
+      "tag": "escalabilidad",
+      "title": "El emparejado aproximado es cuadratico y se materializa entero en memoria",
+      "file": "pdf_compare/batch.py",
+      "lines": [48, 54],
+      "highlight": [48],
+      "context": 2,
+      "lang": "python",
+      "what": "Tras casar los nombres identicos, el resto se puntua construyendo el producto cartesiano completo de los que quedan, se ordena entero y despues se recorre. Con nombres que coinciden exactamente esto no se nota, porque no queda casi nada. El problema aparece cuando las dos carpetas usan convenciones de nombre distintas y no coincide ninguno.",
+      "impact": "Dos carpetas de 500 documentos con nomenclaturas distintas generan 250.000 tuplas en memoria y 250.000 llamadas a SequenceMatcher.ratio(), cada una cuadratica sobre la cadena. Ademas el emparejado ocurre antes de la primera comparacion, y on_progress solo se dispara por pareja comparada: durante todo ese tiempo el comando no imprime nada y parece colgado.",
+      "why": "El coste esta acotado por lo que NO casa exactamente, que es precisamente el caso que el usuario no controla. Un algoritmo cuyo peor caso depende de la entrada del usuario necesita, como minimo, que ese peor caso este medido y dicho.",
+      "suggestion": "Un prefiltro barato antes de puntuar (descartar pares cuya diferencia de longitud ya impide superar el umbral, o comparar solo dentro de bloques por primera letra) recorta la mayoria del producto sin cambiar el resultado. Como minimo, medir con carpetas grandes y documentar el limite, y emitir progreso durante el emparejado.",
+      "test_gap": "No requiere test funcional; requiere una medicion con carpetas grandes antes de comprometer un limite."
+    },
+    {
+      "id": "F3",
+      "priority": "improvement",
+      "tag": "perdida-silenciosa",
+      "title": "Dos diffs pueden pisarse en sistemas de ficheros que ignoran mayusculas",
+      "file": "pdf_compare/batch.py",
+      "line": 90,
+      "context": 3,
+      "lang": "python",
+      "what": "El nombre del diff se deriva del nombre del documento modificado. Dos documentos que solo difieran en mayusculas, como 'report.pdf' y 'REPORT.PDF', producen 'report-diff.pdf' y 'REPORT-diff.pdf'.",
+      "impact": "En Linux son dos ficheros distintos y no pasa nada; verificado. En macOS y en Windows, cuyos sistemas de ficheros por defecto ignoran mayusculas, el segundo sobrescribe al primero sin aviso: el informe enlaza dos entradas y una de ellas apunta al diff equivocado. Es raro, pero es perdida de datos silenciosa y multiplataforma, y el propio CI corre en esos dos sistemas.",
+      "why": "Derivar un nombre de fichero de otro dato hereda todas las colisiones de ese dato mas las que anade el sistema de ficheros de destino. Cuando el nombre de salida debe ser unico, hay que garantizarlo al escribir, no confiar en que la entrada lo sea.",
+      "suggestion": "Detectar la colision al construir el nombre y desambiguar con un sufijo, o prefijar con el indice de la pareja. Sea cual sea la via, que el nombre elegido sea el que se guarda en diff_file, para que el enlace del informe siga siendo correcto.",
+      "test_gap": "Falta un test que compare dos carpetas con nombres que solo difieren en mayusculas y afirme que se escriben dos diffs distintos y que cada entrada enlaza el suyo."
+    },
+    {
+      "id": "F4",
+      "priority": "improvement",
+      "tag": "consistencia",
+      "title": "El modo lote no tiene salida legible por maquina",
+      "file": "pdf_compare/cli.py",
+      "lines": [139, 152],
+      "highlight": [147],
+      "context": 2,
+      "lang": "python",
+      "what": "Un par suelto puede emitir JSON con --json; un lote solo emite HTML. La estructura completa del lote ya existe en memoria, con la misma forma que el JSON de un par mas el emparejado y los sin pareja.",
+      "impact": "Quien quiera encadenar la comparacion por carpetas en un flujo automatico, que es el caso de uso que motivo el JSON, tiene que parsear el HTML. La funcionalidad util para automatizar es justo la que solo habla con humanos.",
+      "why": "Dos modos que resuelven el mismo problema deberian ofrecer las mismas formas de salida, o la asimetria se convierte en una pregunta recurrente. Aqui ademas el coste es minimo porque el dato ya esta construido.",
+      "suggestion": "Aceptar --json tambien en modo lote, volcando la estructura que ya devuelve compare_directories. Decidir si convive con --report o si son excluyentes.",
+      "test_gap": "Si se implementa, hace falta un test que compruebe que el JSON del lote incluye las parejas, los recuentos y los documentos sin pareja."
+    },
+    {
+      "id": "F5",
+      "priority": "optional",
+      "tag": "codigo-inalcanzable",
+      "title": "_iter_page_events trata un caso que align_pages nunca produce",
+      "file": "pdf_compare/comparator.py",
+      "lines": [145, 153],
+      "highlight": [150, 151, 152, 153],
+      "context": 2,
+      "lang": "python",
+      "what": "Dentro de un bloque 'equal' o 'replace', las ramas que manejan una pagina presente en un solo lado no se ejecutan nunca: align_pages siempre emite esos bloques uno a uno, asi que ambos indices existen siempre. La medicion de cobertura lo confirma: son las unicas lineas sin cubrir del comparador.",
+      "impact": "Ninguno en ejecucion. Es generalidad defensiva por si align_pages cambiase de forma, a cambio de codigo que ningun test puede ejercitar y que el proximo lector tendra que analizar para descubrir que no hace falta.",
+      "why": "El codigo inalcanzable no se puede verificar ni refactorizar con confianza. Si se conserva a proposito, conviene que lo diga un comentario; si no, sobra.",
+      "suggestion": "O eliminarlo, simplificando el generador, o dejar constancia de que es deliberado y por que.",
+      "test_gap": "Por definicion no se puede cubrir con la implementacion actual de align_pages."
+    },
+    {
+      "id": "F6",
+      "priority": "optional",
+      "tag": "estilo",
+      "title": "lambda asignada a un nombre",
+      "file": "pdf_compare/batch.py",
+      "line": 31,
+      "context": 2,
+      "lang": "python",
+      "what": "stem se define como una lambda asignada a una variable, algo que PEP 8 desaconseja explicitamente a favor de def.",
+      "impact": "Cosmetico. La unica diferencia real es que en una traza aparece como '<lambda>' en lugar de 'stem'.",
+      "why": "def documenta el nombre en el propio objeto funcion y admite docstring, que aqui vendria bien para explicar que se normaliza a minusculas a proposito.",
+      "suggestion": "Convertirla en una funcion anidada con una linea de docstring que explique la normalizacion.",
+      "change": {
+        "before": "stem = lambda name: os.path.splitext(name)[0].lower()",
+        "after": "def stem(name):\n    \"\"\"El nombre sin extension y en minusculas: el emparejado ignora mayusculas.\"\"\"\n    return os.path.splitext(name)[0].lower()",
+        "lang": "python"
+      }
+    }
+  ]
+}

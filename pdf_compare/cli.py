@@ -94,7 +94,9 @@ def run_batch(dir_a, dir_b, output_dir, report_path):
 
     def announce(summary):
         name = summary["files"]["original"]["name"]
-        if summary["missing_text_layer"]:
+        if summary.get("error"):
+            state = f"could not compare ({summary['error']})"
+        elif summary["missing_text_layer"]:
             state = "no text layer, unreliable"
         elif summary["identical"]:
             state = "identical"
@@ -111,10 +113,16 @@ def run_batch(dir_a, dir_b, output_dir, report_path):
     print(f"{totals['pairs']} pairs compared | {totals['changed']} with differences | "
           f"{totals['identical']} identical")
 
+    if totals["failed"]:
+        print(f"Warning: {totals['failed']} pair(s) could not be compared; see the report.")
     if totals["unmatched"]:
         print(f"Warning: {totals['unmatched']} document(s) had no counterpart and were not compared.")
     if totals["unreliable"]:
         print(f"Warning: {totals['unreliable']} pair(s) have no text layer; those results are not reliable.")
+
+    # A script needs to know something went wrong, even though the report exists
+    if totals["failed"]:
+        sys.exit(1)
 
 
 def main():

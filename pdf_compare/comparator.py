@@ -145,6 +145,11 @@ class PDFComparator:
                     idx_a = i1 + k if i1 + k < i2 else None
                     idx_b = j1 + k if j1 + k < j2 else None
 
+                    # align_pages only ever emits these blocks one page to one
+                    # page, so today both indices are always set. The lopsided
+                    # branches below are deliberate: they keep this generator
+                    # correct for any difflib-shaped opcode, at the cost of two
+                    # branches no test can reach.
                     if idx_a is not None and idx_b is not None:
                         yield 'compared', idx_a, idx_b
                     elif idx_b is not None:

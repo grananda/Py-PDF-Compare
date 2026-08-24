@@ -221,3 +221,32 @@ class TestBatchMode:
         output = capsys.readouterr().out
         assert "no text layer, unreliable" in output, "per document, while it runs"
         assert "1 pair(s) have no text layer" in output, "and again in the summary"
+
+    def test_a_batch_with_a_failure_exits_non_zero(self, monkeypatch, tmp_path):
+        """The report is still written, but a script has to be able to notice."""
+        import fitz
+
+        left, right = tmp_path / "a", tmp_path / "b"
+        left.mkdir()
+        right.mkdir()
+        write_pdf(left / "fine.pdf", ["alpha"])
+        write_pdf(right / "fine.pdf", ["beta"])
+        for folder in (left, right):
+            doc = fitz.open()
+            doc.new_page().insert_text((72, 72), "secret")
+            doc.save(str(folder / "locked.pdf"),
+                     encryption=fitz.PDF_ENCRYPT_AES_256, user_pw="hunter2")
+            doc.close()
+
+        report = tmp_path / "r.html"
+        code = run(monkeypatch, str(left), str(right), "--report", str(report))
+
+        assert code == 1
+        assert report.exists(), "the report must still be produced"
+
+    def test_a_clean_batch_exits_zero(self, monkeypatch, two_folders, tmp_path):
+        left, right = two_folders
+
+        code = run(monkeypatch, left, right, "--report", str(tmp_path / "r.html"))
+
+        assert code == 0

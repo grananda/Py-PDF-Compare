@@ -173,7 +173,8 @@ class TestHtmlReport:
         left, right = folders
         totals = render_html(compare_directories(left, right), str(tmp_path / "r.html"))
 
-        assert totals == {"pairs": 4, "changed": 2, "identical": 2, "unreliable": 1, "unmatched": 2}
+        assert totals == {"pairs": 4, "changed": 2, "identical": 2, "unreliable": 1,
+                          "unmatched": 2, "failed": 0}
 
     def test_names_the_documents_with_no_counterpart(self, folders, tmp_path):
         left, right = folders
@@ -233,3 +234,87 @@ class TestHtmlReport:
 
         assert totals["pairs"] == 0
         assert "No comparable documents found" in report.read_text(encoding="utf-8")
+
+
+class TestAPairThatCannotBeCompared:
+    """Regression: one unreadable document used to abort the whole batch."""
+
+    @pytest.fixture
+    def with_a_locked_document(self, tmp_path):
+        import fitz
+
+        left, right = tmp_path / "a", tmp_path / "b"
+        left.mkdir()
+        right.mkdir()
+
+        write_pdf(left / "before.pdf", ["alpha"])
+        write_pdf(right / "before.pdf", ["beta"])
+        write_pdf(left / "after.pdf", ["gamma"])
+        write_pdf(right / "after.pdf", ["delta"])
+
+        for folder in (left, right):
+            doc = fitz.open()
+            doc.new_page().insert_text((72, 72), "secret")
+            doc.save(str(folder / "locked.pdf"),
+                     encryption=fitz.PDF_ENCRYPT_AES_256, user_pw="hunter2")
+            doc.close()
+
+        return str(left), str(right)
+
+    def test_the_rest_of_the_batch_still_runs(self, with_a_locked_document):
+        left, right = with_a_locked_document
+
+        results = compare_directories(left, right)["results"]
+
+        by_name = {r["files"]["original"]["name"]: r for r in results}
+        assert len(results) == 3, "every pair is accounted for"
+        assert by_name["locked.pdf"]["error"], "the failure is recorded, not raised"
+        assert not by_name["before.pdf"].get("error")
+        assert not by_name["after.pdf"].get("error")
+
+    def test_diffs_are_still_written_for_the_pairs_that_worked(self, with_a_locked_document, tmp_path):
+        left, right = with_a_locked_document
+        out = tmp_path / "diffs"
+
+        compare_directories(left, right, str(out))
+
+        assert sorted(os.listdir(out)) == ["after-diff.pdf", "before-diff.pdf"]
+
+    def test_the_report_counts_and_explains_the_failure(self, with_a_locked_document, tmp_path):
+        left, right = with_a_locked_document
+        report = tmp_path / "r.html"
+
+        totals = render_html(compare_directories(left, right), str(report))
+        source = report.read_text(encoding="utf-8")
+
+        assert totals["failed"] == 1
+        assert totals["changed"] == 2, "a failure is not counted as a difference"
+        assert "Could not compare" in source
+        assert "locked.pdf" in source
+
+    def test_a_failure_is_not_reported_as_identical(self, with_a_locked_document):
+        left, right = with_a_locked_document
+
+        failed = [r for r in compare_directories(left, right)["results"] if r.get("error")]
+
+        assert failed[0]["identical"] is False, "unknown must never read as unchanged"
+
+
+class TestDiffNamesDoNotCollide:
+    """Regression: names differing only in case overwrite each other on macOS."""
+
+    def test_names_differing_only_in_case_get_distinct_diffs(self, tmp_path):
+        left, right = tmp_path / "a", tmp_path / "b"
+        left.mkdir()
+        right.mkdir()
+        for folder, text in ((left, "one"), (right, "one changed")):
+            write_pdf(folder / "report.pdf", [text])
+            write_pdf(folder / "REPORT.PDF", [text + " too"])
+        out = tmp_path / "diffs"
+
+        batch = compare_directories(str(left), str(right), str(out))
+
+        produced = [r["diff_file"] for r in batch["results"] if r["diff_file"]]
+        assert len(produced) == 2
+        assert len({name.lower() for name in produced}) == 2, \
+            "case-insensitive filesystems would treat these as one file"
