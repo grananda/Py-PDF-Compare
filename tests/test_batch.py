@@ -6,6 +6,7 @@ import pytest
 
 from pdf_compare.batch import (
     NAME_SIMILARITY_THRESHOLD,
+    _unique_diff_name,
     compare_directories,
     list_pdfs,
     pair_documents,
@@ -300,10 +301,47 @@ class TestAPairThatCannotBeCompared:
         assert failed[0]["identical"] is False, "unknown must never read as unchanged"
 
 
-class TestDiffNamesDoNotCollide:
-    """Regression: names differing only in case overwrite each other on macOS."""
+def case_sensitive(directory):
+    """Whether this filesystem tells two names apart by case."""
+    probe = directory / "case-probe"
+    probe.write_text("x")
+    try:
+        return not (directory / "CASE-PROBE").exists()
+    finally:
+        probe.unlink()
 
-    def test_names_differing_only_in_case_get_distinct_diffs(self, tmp_path):
+
+class TestDiffNamesDoNotCollide:
+    """Regression: names differing only in case overwrote each other."""
+
+    def test_names_differing_only_in_case_get_distinct_diffs(self):
+        """Pure check: runs everywhere, including where the disk folds case."""
+        used = set()
+
+        first = _unique_diff_name("report.pdf", used)
+        second = _unique_diff_name("REPORT.PDF", used)
+
+        assert first == "report-diff.pdf"
+        assert second != first
+        assert second.lower() != first.lower(), \
+            "a case-insensitive filesystem would treat these as one file"
+
+    def test_a_third_collision_keeps_counting(self):
+        used = set()
+        names = [_unique_diff_name(name, used) for name in ("a.pdf", "A.pdf", "A.PDF")]
+
+        assert len({name.lower() for name in names}) == 3
+
+    def test_unrelated_names_are_left_alone(self):
+        used = set()
+
+        assert _unique_diff_name("poliza.pdf", used) == "poliza-diff.pdf"
+        assert _unique_diff_name("anexo.pdf", used) == "anexo-diff.pdf"
+
+    def test_on_disk_when_the_filesystem_can_hold_both(self, tmp_path):
+        if not case_sensitive(tmp_path):
+            pytest.skip("this filesystem folds case, so both source files cannot coexist")
+
         left, right = tmp_path / "a", tmp_path / "b"
         left.mkdir()
         right.mkdir()
@@ -316,5 +354,4 @@ class TestDiffNamesDoNotCollide:
 
         produced = [r["diff_file"] for r in batch["results"] if r["diff_file"]]
         assert len(produced) == 2
-        assert len({name.lower() for name in produced}) == 2, \
-            "case-insensitive filesystems would treat these as one file"
+        assert len(os.listdir(out)) == 2
