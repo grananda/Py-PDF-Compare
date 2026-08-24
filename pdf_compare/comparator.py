@@ -200,6 +200,88 @@ class PDFComparator:
 
         return self.align_pages(text_a, text_b)
 
+    def compare(self, build_pdf=False):
+        """Run the comparison once, in a single pass over both documents.
+
+        Returns (summary, pdf_bytes). The summary is always produced; pdf_bytes
+        is None unless build_pdf is set and something actually differs. Callers
+        that need both -- batch runs writing a diff and a report -- get them
+        without aligning and diffing the documents twice.
+        """
+        opcodes = self._page_alignment()
+
+        pages_added = pages_removed = pages_modified = 0
+        words_added = words_removed = 0
+
+        with fitz.open(self.file_path_a) as doc_a, \
+                fitz.open(self.file_path_b) as doc_b, \
+                fitz.open() as output_doc:
+
+            for event, idx_a, idx_b in self._iter_page_events(opcodes):
+                if event == 'added':
+                    pages_added += 1
+                    words_added += len(self._word_texts(doc_b[idx_b]))
+                    if build_pdf:
+                        self._add_single_page(output_doc, doc_b, idx_b, 'right', 'Added')
+
+                elif event == 'removed':
+                    pages_removed += 1
+                    words_removed += len(self._word_texts(doc_a[idx_a]))
+                    if build_pdf:
+                        self._add_single_page(output_doc, doc_a, idx_a, 'left', 'Missing')
+
+                else:
+                    changed = self._compare_pages(output_doc, doc_a, doc_b, idx_a, idx_b, build_pdf)
+                    if changed:
+                        pages_modified += 1
+                        words_added += changed['added']
+                        words_removed += changed['removed']
+
+            summary = self._summarise(
+                doc_a.page_count, doc_b.page_count,
+                pages_added, pages_removed, pages_modified, words_added, words_removed,
+            )
+
+            if not build_pdf or summary['identical'] and not self.missing_text_layer:
+                return summary, None
+
+            return summary, output_doc.tobytes()
+
+    def _compare_pages(self, output_doc, doc_a, doc_b, idx_a, idx_b, build_pdf):
+        """Count the words that changed between two pages, drawing them if asked."""
+        if build_pdf:
+            return self._add_comparison_page(output_doc, doc_a, doc_b, idx_a, idx_b)
+
+        word_opcodes = self._word_opcodes(
+            self._word_texts(doc_a[idx_a]), self._word_texts(doc_b[idx_b])
+        )
+        return Counter(side for side, _ in self._changed_words(word_opcodes))
+
+    def _summarise(self, page_count_a, page_count_b,
+                   pages_added, pages_removed, pages_modified, words_added, words_removed):
+        """Shape the result as plain data."""
+        return {
+            'files': {
+                'original': {'name': os.path.basename(self.file_path_a),
+                             'path': os.path.abspath(self.file_path_a),
+                             'pages': page_count_a},
+                'modified': {'name': os.path.basename(self.file_path_b),
+                             'path': os.path.abspath(self.file_path_b),
+                             'pages': page_count_b},
+            },
+            # False here is only trustworthy when missing_text_layer is False:
+            # a scan yields no extractable text, so it looks unchanged.
+            'identical': not (pages_added or pages_removed or pages_modified),
+            'missing_text_layer': self.missing_text_layer,
+            'changes': {
+                'pages_added': pages_added,
+                'pages_removed': pages_removed,
+                'pages_modified': pages_modified,
+                'words_added': words_added,
+                'words_removed': words_removed,
+            },
+        }
+
     def compare_visuals(self):
         """
         Create a vector-based PDF comparison report.
@@ -209,31 +291,7 @@ class PDFComparator:
         determined, so the report is returned anyway and self.missing_text_layer
         is set: reporting "no differences" would be a claim we cannot make.
         """
-        opcodes = self._page_alignment()
-
-        # Tracks whether any real difference was found, to tell "identical
-        # documents" apart from "documents that differ".
-        has_differences = False
-
-        with fitz.open(self.file_path_a) as doc_a, \
-                fitz.open(self.file_path_b) as doc_b, \
-                fitz.open() as output_doc:
-
-            for event, idx_a, idx_b in self._iter_page_events(opcodes):
-                if event == 'compared':
-                    if self._add_comparison_page(output_doc, doc_a, doc_b, idx_a, idx_b):
-                        has_differences = True
-                elif event == 'added':
-                    self._add_single_page(output_doc, doc_b, idx_b, 'right', 'Added')
-                    has_differences = True
-                elif event == 'removed':
-                    self._add_single_page(output_doc, doc_a, idx_a, 'left', 'Missing')
-                    has_differences = True
-
-            if not has_differences and not self.missing_text_layer:
-                return None
-
-            return output_doc.tobytes()
+        return self.compare(build_pdf=True)[1]
 
     def analyze(self):
         """Compare both documents and return the result as plain data.
@@ -250,64 +308,13 @@ class PDFComparator:
         original? of both? how much is a whole added page worth?), while counts
         are facts the caller can turn into whatever ratio they need.
         """
-        opcodes = self._page_alignment()
-
-        pages_added = pages_removed = pages_modified = 0
-        words_added = words_removed = 0
-
-        with fitz.open(self.file_path_a) as doc_a, \
-                fitz.open(self.file_path_b) as doc_b:
-
-            for event, idx_a, idx_b in self._iter_page_events(opcodes):
-                # Only word counts are needed here, so no boxes are built
-                if event == 'added':
-                    pages_added += 1
-                    words_added += len(self._word_texts(doc_b[idx_b]))
-                elif event == 'removed':
-                    pages_removed += 1
-                    words_removed += len(self._word_texts(doc_a[idx_a]))
-                else:
-                    opcodes = self._word_opcodes(
-                        self._word_texts(doc_a[idx_a]), self._word_texts(doc_b[idx_b])
-                    )
-                    changed = Counter(side for side, _ in self._changed_words(opcodes))
-
-                    if changed:
-                        pages_modified += 1
-                        words_added += changed['added']
-                        words_removed += changed['removed']
-
-            page_count_a = doc_a.page_count
-            page_count_b = doc_b.page_count
-
-        identical = not (pages_added or pages_removed or pages_modified)
-
-        return {
-            'files': {
-                'original': {'name': os.path.basename(self.file_path_a),
-                             'path': os.path.abspath(self.file_path_a),
-                             'pages': page_count_a},
-                'modified': {'name': os.path.basename(self.file_path_b),
-                             'path': os.path.abspath(self.file_path_b),
-                             'pages': page_count_b},
-            },
-            # False here is only trustworthy when missing_text_layer is False:
-            # a scan yields no extractable text, so it looks unchanged.
-            'identical': identical,
-            'missing_text_layer': self.missing_text_layer,
-            'changes': {
-                'pages_added': pages_added,
-                'pages_removed': pages_removed,
-                'pages_modified': pages_modified,
-                'words_added': words_added,
-                'words_removed': words_removed,
-            },
-        }
+        return self.compare()[0]
 
     def _add_comparison_page(self, output_doc, doc_a, doc_b, idx_a, idx_b):
         """Add a side-by-side comparison page to the output PDF.
 
-        Returns True if any textual difference was highlighted on the page.
+        Returns a Counter of the words highlighted on each side, empty when the
+        pages match, so the caller can both draw and count in one pass.
         """
         page_a = doc_a[idx_a]
         page_b = doc_b[idx_b]
@@ -365,9 +372,9 @@ class PDFComparator:
     def _highlight_differences(self, new_page, page_a, page_b, left_x, right_x, top_y):
         """Draw a box over every word that changed between the two pages.
 
-        Returns True if anything was highlighted. Deletions go in red over the
-        original and insertions in green over the modified one; only the source
-        panel, its horizontal offset and the colour differ.
+        Returns a Counter of how many words were highlighted per side.
+        Deletions go in red over the original and insertions in green over the
+        modified one; only the source panel, offset and colour differ.
         """
         words_a = self.extract_words_with_bbox(page_a)
         words_b = self.extract_words_with_bbox(page_b)
@@ -382,9 +389,9 @@ class PDFComparator:
             'added': (words_b, right_x, (0, 1, 0), (0.7, 1, 0.7)),
         }
 
-        has_changes = False
+        highlighted = Counter()
         for side, index in self._changed_words(word_opcodes):
-            has_changes = True
+            highlighted[side] += 1
             words, x_offset, colour, fill = panels[side]
             bbox = words[index]['bbox']
 
@@ -394,7 +401,7 @@ class PDFComparator:
                 color=colour, fill=fill, fill_opacity=0.3,
             )
 
-        return has_changes
+        return highlighted
 
     def _add_single_page(self, output_doc, source_doc, page_idx, position, label_type):
         """Add a single page (for insertions/deletions) with a blank space on the other side."""

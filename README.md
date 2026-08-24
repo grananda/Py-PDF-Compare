@@ -69,6 +69,12 @@ pdf-compare original.pdf modified.pdf -o diff.pdf
 # Get a machine-readable summary instead of a PDF
 pdf-compare original.pdf modified.pdf --json result.json
 
+# Compare two folders: diff documents plus an HTML report
+pdf-compare ./version-1 ./version-2 --out ./diffs
+
+# Compare two folders, report only
+pdf-compare ./version-1 ./version-2 --report changes.html
+
 # Launch GUI application
 pdf-compare-gui
 
@@ -158,6 +164,31 @@ Counts are reported rather than a similarity percentage, deliberately: a percent
 `identical: true` is only trustworthy when `missing_text_layer` is `false`. A scan has no extractable text, so it looks unchanged — always check both fields together.
 
 The same comparison, literally: `analyze()` and `compare_visuals()` share the page alignment and the word-level diff, so they can never disagree. It is **not** meaningfully faster, though — composing the report references the source pages as vector objects rather than rendering them, so building the PDF costs almost nothing. The reason to use it is the format, and not writing a large file you do not need.
+
+## Comparing folders
+
+Pass two directories instead of two files and every document is compared against its
+counterpart in the other folder:
+
+```bash
+pdf-compare ./version-1 ./version-2 --out ./diffs      # diffs + report
+pdf-compare ./version-1 ./version-2 --report r.html    # report only
+```
+
+**Pairing.** Documents are matched by file name. Identical names (ignoring case) are
+matched first, so a perfect name can never be taken by a similar one; the rest are matched
+by name similarity, best score first and one-to-one, above a threshold. A file whose
+counterpart cannot be found is **never compared silently** — it is listed in the report,
+since a document with no counterpart usually means one was added or withdrawn.
+
+**Output.** `--out DIR` writes the diff of every differing pair into `DIR`; identical pairs
+produce no document. An HTML report is **always** written: to `report.html` inside `--out`,
+or to the path given by `--report`. Without `--out` nothing but the report is produced.
+
+The report is a single self-contained file — no external requests — listing every pair with
+its page and word changes, linking each diff document, and calling out the two cases that
+need a human: documents with no counterpart, and pairs with no text layer, whose result
+cannot be trusted.
 
 ## How It Works
 

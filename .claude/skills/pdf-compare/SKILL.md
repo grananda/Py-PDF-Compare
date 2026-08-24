@@ -1,6 +1,6 @@
 ---
 name: pdf-compare
-description: Compare two PDF files and produce a side-by-side visual diff report using this project. Use when the user asks to compare two PDFs, see what changed between two versions of a document, generate a PDF diff or difference report, or check whether two PDFs are identical. Also on phrasings like "compare these two PDFs", "what changed between these versions", "diff these documents".
+description: Compare PDF documents using this project - either two files, or two whole folders paired up by file name. Use when the user asks to compare two PDFs, see what changed between two versions of a document, generate a PDF diff or difference report, or check whether two PDFs are identical. Also when they ask to compare two directories of PDFs, or want an HTML summary of changes across a document set. Phrasings like "compare these two PDFs", "compare these folders", "what changed between these versions", "diff this batch of documents".
 ---
 
 # pdf-compare
@@ -57,13 +57,47 @@ Report the source before the results. Without it, an odd result is indistinguish
 
 **Do not use `pdf_compare.__version__` to identify the build.** It is maintained by hand in `pdf_compare/__init__.py`, separately from `pyproject.toml`, and has shipped stale in a published release. Trust the distribution metadata instead.
 
-## 3. Before comparing
+## 3. Two files or two folders
+
+The same command handles both; it dispatches on what the paths are. Mixing a file and a
+folder is an error, and the command says so.
+
+**Two folders** — every document is compared against its counterpart in the other folder:
+
+```bash
+# diff documents plus the report
+uv run --project "$REPO" pdf-compare <dir_original> <dir_modified> --out <dir_diffs>
+
+# report only, nothing else produced
+uv run --project "$REPO" pdf-compare <dir_original> <dir_modified> --report <report.html>
+```
+
+**Which mode does the user want?** If they only need to know *what* changed, the report
+alone is enough. Reach for `--out` when they will actually open the diffs to read them.
+**An HTML report is always written**, including in `--out` mode, where it lands beside the
+diffs as `report.html` and links to each one.
+
+**Pairing is by file name**: identical names first, then by similarity, one to one. You do
+not pair anything yourself — but do **read back what it paired**, because a fuzzy match is
+a guess.
+
+Two results in the report deserve to be surfaced, not buried in a count:
+
+- **Documents with no counterpart were not compared.** One usually means a document was
+  added or withdrawn entirely, which is often the most important finding in the batch.
+- **Pairs with no text layer** are scans; their result is not trustworthy and is easy to
+  miss among the pairs that worked.
+
+> If `--out` or `--report` come back as unrecognised arguments, the build you resolved
+> predates folder comparison. Check which build you are on (section 2).
+
+## 4. Before comparing
 
 1. **Establish which file is the original and which is the modified one.** Order matters: the first is drawn on the left with its differences in red, the second on the right in green. If the names or context do not make it obvious, ask.
 2. **Choose the output path.** Default to `diff.pdf` in the current directory. Do not overwrite an existing file without saying so; propose another name instead.
 3. Check both input paths exist.
 
-## 4. Reading the result
+## 5. Reading the result
 
 | Output | Meaning | What to do |
 |---|---|---|
@@ -74,17 +108,17 @@ Report the source before the results. Without it, an odd result is indistinguish
 
 A warning about the deprecated `fitz` API is PyMuPDF noise, not a problem with the comparison. Ignore it.
 
-## 5. Limitations worth surfacing when they apply
+## 6. Limitations worth surfacing when they apply
 
 - **No OCR**: scanned documents, or any PDF without a text layer, cannot be compared.
 - **Text only**: changes to images, vector graphics, colours or fonts go undetected when the text is unchanged.
 - **Large page shifts**: alignment looks at most `LOOKAHEAD_WINDOW` (3) pages ahead. A block of more than three consecutive inserted or deleted pages mid-document may not be recovered, and everything after it can be reported as changed. If the report shows a wall of differences starting at one specific point, suspect this before believing the document really changed that much.
 
-## 6. Privacy
+## 7. Privacy
 
 The documents being compared are usually real ones — contracts, policies, invoices — carrying personal data. **Do not dump their contents** into the conversation or into temporary files: restrict yourself to paths, page numbers, metrics and the report's own labels. All processing is local; nothing is sent over the network.
 
-## 7. Graphical interface
+## 8. Graphical interface
 
 There is also a desktop GUI, resolved the same way:
 
