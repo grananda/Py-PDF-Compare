@@ -66,15 +66,28 @@ class TestTemporaryReport:
 
         assert app.output_path == ""
 
-    def test_mkstemp_gives_a_private_unpredictable_path(self):
+    def test_two_instances_get_different_paths(self):
         handle_a, path_a = tempfile.mkstemp(prefix="pdf_comparison_", suffix=".pdf")
         handle_b, path_b = tempfile.mkstemp(prefix="pdf_comparison_", suffix=".pdf")
         os.close(handle_a)
         os.close(handle_b)
 
         try:
-            assert path_a != path_b, "two instances must not collide"
-            assert oct(os.stat(path_a).st_mode)[-3:] == "600", "readable by others"
+            assert path_a != path_b, "two instances would overwrite each other"
         finally:
             os.remove(path_a)
             os.remove(path_b)
+
+    @pytest.mark.skipif(
+        os.name == "nt",
+        reason="Windows has no POSIX permission bits; there the temp directory "
+               "is already per-user, so the shared-directory exposure does not apply",
+    )
+    def test_the_temporary_file_is_not_readable_by_others(self):
+        handle, path = tempfile.mkstemp(prefix="pdf_comparison_", suffix=".pdf")
+        os.close(handle)
+
+        try:
+            assert oct(os.stat(path).st_mode)[-3:] == "600"
+        finally:
+            os.remove(path)
