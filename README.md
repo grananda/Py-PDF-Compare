@@ -219,9 +219,12 @@ Py-PDF-Compare/
 ├── pdf_compare/
 │   ├── __init__.py         # Package initialization
 │   ├── comparator.py       # Core comparison logic
+│   ├── batch.py            # Folder pairing and HTML report
 │   ├── cli.py              # Command-line interface
 │   ├── gui.py              # Desktop GUI application
 │   └── config.py           # Configuration
+├── tests/                  # Test suite (pytest)
+├── .claude/skills/         # Claude Code skill shipped with the project
 ├── scripts/
 │   ├── build_windows.py    # Build Windows executable
 │   ├── build_linux.py      # Build Linux executable
@@ -321,6 +324,34 @@ Then import in your Python code:
 ```python
 from pdf_compare import PDFComparator
 ```
+
+## Claude Code skill
+
+The repository ships a [Claude Code](https://claude.com/claude-code) skill in
+`.claude/skills/pdf-compare/`. It is picked up automatically when Claude Code runs in this
+project — nothing to install — and turns a request like *"compare these two PDFs"* or
+*"compare these folders"* into the right invocation. If you do not use Claude Code, the
+directory is inert.
+
+What it encodes is the operational knowledge that is otherwise learned the hard way:
+
+- **Never run a bare `pdf-compare`.** A copy installed with `uv tool install` is frozen at
+  whatever version was current that day. The skill resolves the build explicitly — the
+  working copy when there is one, `uvx --from "py-pdf-compare@latest"` otherwise — and
+  states which one it ran, so a surprising result is never confused with a stale binary.
+- **Argument order decides the colours**: the first document is drawn on the left, with its
+  differences in red.
+- **An identical pair writes no file at all**, so there is no report to go looking for.
+- **A missing text layer makes the result untrustworthy** — and in a batch of two hundred
+  documents, easy to miss among the pairs that worked.
+- **Documents with no counterpart were never compared**, which usually means one was added
+  or withdrawn: often the most important finding in a batch.
+- **A wall of differences starting at one specific page** points at the alignment lookahead
+  window being exceeded, before it points at a genuinely rewritten document.
+- **Document contents never get pasted into the conversation.** The PDFs compared in
+  practice are contracts, policies and invoices.
+
+Ask for it in plain language, or invoke it explicitly with `/pdf-compare`.
 
 ## License
 
