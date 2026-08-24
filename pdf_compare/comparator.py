@@ -1,4 +1,5 @@
 import os
+from collections import Counter
 
 import fitz  # PyMuPDF
 import difflib
@@ -148,7 +149,7 @@ class PDFComparator:
                         yield 'compared', idx_a, idx_b
                     elif idx_b is not None:
                         yield 'added', None, idx_b
-                    elif idx_a is not None:
+                    else:
                         yield 'removed', idx_a, None
 
             elif tag == 'delete':
@@ -159,23 +160,37 @@ class PDFComparator:
                 for k in range(j1, j2):
                     yield 'added', None, k
 
-    def _word_diff(self, page_a, page_b):
-        """Word-level difference between two pages.
+    @staticmethod
+    def _word_texts(page):
+        """The words of a page, without building a box for each one."""
+        return [word[4] for word in page.get_text("words")]
 
-        Returns (words_a, words_b, opcodes). Shared by the PDF renderer, which
-        draws the highlights, and by the JSON report, which counts them.
+    @staticmethod
+    def _word_opcodes(texts_a, texts_b):
+        """The word-level diff.
+
+        The only implementation, so the PDF report and the JSON report cannot
+        disagree about what changed on a page.
         """
-        words_a = self.extract_words_with_bbox(page_a)
-        words_b = self.extract_words_with_bbox(page_b)
+        return difflib.SequenceMatcher(None, texts_a, texts_b).get_opcodes()
 
-        matcher = difflib.SequenceMatcher(
-            None, [w['text'] for w in words_a], [w['text'] for w in words_b]
-        )
+    @staticmethod
+    def _changed_words(word_opcodes):
+        """Yield ('removed', index) or ('added', index) per changed word.
 
-        return words_a, words_b, matcher.get_opcodes()
+        Keeps the knowledge that a replacement counts on both sides in one
+        place, instead of in every consumer of the diff.
+        """
+        for tag, ii1, ii2, jj1, jj2 in word_opcodes:
+            if tag in ('replace', 'delete'):
+                for index in range(ii1, ii2):
+                    yield 'removed', index
+            if tag in ('replace', 'insert'):
+                for index in range(jj1, jj2):
+                    yield 'added', index
 
-    def _prepare(self):
-        """Extract text, flag a missing text layer and align the pages."""
+    def _page_alignment(self):
+        """Align both documents, flagging a missing text layer on the way."""
         text_a = self.extract_text(self.file_path_a)
         text_b = self.extract_text(self.file_path_b)
 
@@ -183,7 +198,7 @@ class PDFComparator:
             self._has_text_layer(text_a) and self._has_text_layer(text_b)
         )
 
-        return text_a, text_b, self.align_pages(text_a, text_b)
+        return self.align_pages(text_a, text_b)
 
     def compare_visuals(self):
         """
@@ -194,7 +209,7 @@ class PDFComparator:
         determined, so the report is returned anyway and self.missing_text_layer
         is set: reporting "no differences" would be a claim we cannot make.
         """
-        _, _, opcodes = self._prepare()
+        opcodes = self._page_alignment()
 
         # Tracks whether any real difference was found, to tell "identical
         # documents" apart from "documents that differ".
@@ -224,16 +239,18 @@ class PDFComparator:
         """Compare both documents and return the result as plain data.
 
         Runs the same alignment and the same word-level diff as
-        compare_visuals(), but composes no PDF -- which is where nearly all the
-        cost is. Intended for automation: report which files were compared and
-        how much changed, without producing a document to read.
+        compare_visuals(), but composes no PDF. Intended for automation: report
+        which files were compared and how much changed, without producing a
+        document to read. Note this is not meaningfully faster -- composing the
+        report references the source pages as vector objects rather than
+        rendering them, so it costs almost nothing; the saving is the file.
 
         Counts are reported rather than a similarity percentage on purpose: a
         percentage needs a denominator nobody can agree on (words of the
         original? of both? how much is a whole added page worth?), while counts
         are facts the caller can turn into whatever ratio they need.
         """
-        _, _, opcodes = self._prepare()
+        opcodes = self._page_alignment()
 
         pages_added = pages_removed = pages_modified = 0
         words_added = words_removed = 0
@@ -242,27 +259,23 @@ class PDFComparator:
                 fitz.open(self.file_path_b) as doc_b:
 
             for event, idx_a, idx_b in self._iter_page_events(opcodes):
+                # Only word counts are needed here, so no boxes are built
                 if event == 'added':
                     pages_added += 1
-                    # Only the count is needed here, so skip building a bbox per word
-                    words_added += len(doc_b[idx_b].get_text("words"))
+                    words_added += len(self._word_texts(doc_b[idx_b]))
                 elif event == 'removed':
                     pages_removed += 1
-                    words_removed += len(doc_a[idx_a].get_text("words"))
+                    words_removed += len(self._word_texts(doc_a[idx_a]))
                 else:
-                    words_a, words_b, diff = self._word_diff(doc_a[idx_a], doc_b[idx_b])
-                    page_added = page_removed = 0
+                    opcodes = self._word_opcodes(
+                        self._word_texts(doc_a[idx_a]), self._word_texts(doc_b[idx_b])
+                    )
+                    changed = Counter(side for side, _ in self._changed_words(opcodes))
 
-                    for tag, ii1, ii2, jj1, jj2 in diff:
-                        if tag in ('replace', 'delete'):
-                            page_removed += ii2 - ii1
-                        if tag in ('replace', 'insert'):
-                            page_added += jj2 - jj1
-
-                    if page_added or page_removed:
+                    if changed:
                         pages_modified += 1
-                        words_added += page_added
-                        words_removed += page_removed
+                        words_added += changed['added']
+                        words_removed += changed['removed']
 
             page_count_a = doc_a.page_count
             page_count_b = doc_b.page_count
@@ -334,48 +347,52 @@ class PDFComparator:
             idx_b
         )
 
-        # Same word-level diff the JSON report counts
-        words_a, words_b, word_opcodes = self._word_diff(page_a, page_b)
-
-        # Highlight differences
-        has_changes = False
-        for inner_tag, ii1, ii2, jj1, jj2 in word_opcodes:
-            if inner_tag == 'equal':
-                continue
-
-            has_changes = True
-
-            # Highlight deletions (red on left page)
-            if inner_tag in ('replace', 'delete'):
-                for w_idx in range(ii1, ii2):
-                    bbox = words_a[w_idx]['bbox']
-                    # Adjust bbox to output page coordinates
-                    adjusted_bbox = fitz.Rect(
-                        bbox.x0 + margin,
-                        bbox.y0 + margin + label_height,
-                        bbox.x1 + margin,
-                        bbox.y1 + margin + label_height
-                    )
-                    new_page.draw_rect(adjusted_bbox, color=(1, 0, 0), fill=(1, 0.7, 0.7), fill_opacity=0.3)
-
-            # Highlight insertions (green on right page)
-            if inner_tag in ('replace', 'insert'):
-                for w_idx in range(jj1, jj2):
-                    bbox = words_b[w_idx]['bbox']
-                    # Adjust bbox to output page coordinates
-                    adjusted_bbox = fitz.Rect(
-                        bbox.x0 + margin + rect_a.width + gap,
-                        bbox.y0 + margin + label_height,
-                        bbox.x1 + margin + rect_a.width + gap,
-                        bbox.y1 + margin + label_height
-                    )
-                    new_page.draw_rect(adjusted_bbox, color=(0, 1, 0), fill=(0.7, 1, 0.7), fill_opacity=0.3)
+        has_changes = self._highlight_differences(
+            new_page, page_a, page_b,
+            left_x=margin,
+            right_x=margin + rect_a.width + gap,
+            top_y=margin + label_height,
+        )
 
         # Add visual indicator if pages are shifted
         if idx_a != idx_b:
             # Draw a yellow border to indicate page shift
             new_page.draw_rect(fitz.Rect(5, 5, width - 5, height - 5), color=(1, 1, 0), width=3)
             self._add_text(new_page, "(Page Shifted)", width / 2 - 50, height - 15, fontsize=10, color=(0.8, 0.6, 0))
+
+        return has_changes
+
+    def _highlight_differences(self, new_page, page_a, page_b, left_x, right_x, top_y):
+        """Draw a box over every word that changed between the two pages.
+
+        Returns True if anything was highlighted. Deletions go in red over the
+        original and insertions in green over the modified one; only the source
+        panel, its horizontal offset and the colour differ.
+        """
+        words_a = self.extract_words_with_bbox(page_a)
+        words_b = self.extract_words_with_bbox(page_b)
+
+        # The same word-level diff the JSON report counts
+        word_opcodes = self._word_opcodes(
+            [word['text'] for word in words_a], [word['text'] for word in words_b]
+        )
+
+        panels = {
+            'removed': (words_a, left_x, (1, 0, 0), (1, 0.7, 0.7)),
+            'added': (words_b, right_x, (0, 1, 0), (0.7, 1, 0.7)),
+        }
+
+        has_changes = False
+        for side, index in self._changed_words(word_opcodes):
+            has_changes = True
+            words, x_offset, colour, fill = panels[side]
+            bbox = words[index]['bbox']
+
+            new_page.draw_rect(
+                fitz.Rect(bbox.x0 + x_offset, bbox.y0 + top_y,
+                          bbox.x1 + x_offset, bbox.y1 + top_y),
+                color=colour, fill=fill, fill_opacity=0.3,
+            )
 
         return has_changes
 

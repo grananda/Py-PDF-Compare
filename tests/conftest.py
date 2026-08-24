@@ -4,15 +4,10 @@ Synthetic documents are preferred over the files in sample-files/ for anything
 that needs precise control (rotation, a missing text layer, encryption). The
 sample files are used where a realistic document matters.
 """
+import pathlib
+
 import fitz
 import pytest
-
-LOREM = (
-    "Lorem ipsum dolor sit amet consectetuer adipiscing elit sed diam nonummy "
-    "nibh euismod tincidunt ut laoreet dolore magna aliquam erat volutpat ut "
-    "wisi enim ad minim veniam quis nostrud exerci tation ullamcorper suscipit"
-)
-
 
 def write_pdf(path, pages, rotation=0):
     """Create a PDF at `path`, one page per entry in `pages`.
@@ -43,7 +38,6 @@ def pdf(tmp_path):
 @pytest.fixture
 def samples():
     """Paths to the sample documents committed with the project."""
-    import pathlib
     base = pathlib.Path(__file__).resolve().parent.parent / "sample-files"
     return {
         "original": str(base / "original.pdf"),
